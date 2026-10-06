@@ -11,9 +11,11 @@ faster and runs on a GPU:
 
     python -m nca.train --help
 
-The starter checkpoint was made with (from the project root):
+The starter checkpoint was made with the original Distill damage settings
+(from the project root):
 
-    python tools/train_numpy.py --iters 4000 --out checkpoints/spiderweb_starter.npz
+    python tools/train_numpy.py --iters 4000 --damage 3 --noise-damage 0 \
+        --out checkpoints/spiderweb_starter.npz
 """
 import argparse
 import json
@@ -25,7 +27,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nca.checkpoint import save_npz  # noqa: E402
+from nca.checkpoint import load_npz, save_npz  # noqa: E402
 from nca.numpy_nca import (  # noqa: E402
     alive_mask, make_seed, perceive, sobel_x, sobel_y, update)
 from nca.target import load_target  # noqa: E402
@@ -122,6 +124,21 @@ def circle_masks(n, h, w, rng):
     return (((xs - cx) / r) ** 2 + ((ys - cy) / r) ** 2) < 1.0
 
 
+def noise_damage(x, rng, threshold, std_range):
+    """In place: Gaussian noise on every channel of the living cells inside a random disc.
+
+    Mirrors the sandbox's noise brush, so the model learns to recover from it.
+    The standard deviation is drawn per sample from std_range.
+    """
+    n, H, W, C = x.shape
+    discs = circle_masks(n, H, W, rng)
+    living = alive_mask(x, threshold)[..., 0]
+    for k in range(n):
+        m = discs[k] & living[k]
+        std = rng.uniform(*std_range)
+        x[k][m] += rng.normal(0.0, std, (int(m.sum()), C)).astype(x.dtype)
+
+
 def per_sample_loss(x, target):
     return ((x[..., :4] - target) ** 2).mean(axis=(1, 2, 3))
 
@@ -153,7 +170,10 @@ def main():
     ap.add_argument("--alive-threshold", type=float, default=0.1)
     ap.add_argument("--batch", type=int, default=8)
     ap.add_argument("--pool", type=int, default=1024)
-    ap.add_argument("--damage", type=int, default=3, help="samples per batch that get a random disc erased")
+    ap.add_argument("--damage", type=int, default=2, help="samples per batch that get a random disc erased")
+    ap.add_argument("--noise-damage", type=int, default=2,
+                    help="further samples per batch that get Gaussian noise inside a random disc")
+    ap.add_argument("--noise-std", default="0.1,0.6", help="range the noise standard deviation is drawn from")
     ap.add_argument("--min-steps", type=int, default=64)
     ap.add_argument("--max-steps", type=int, default=96)
     ap.add_argument("--iters", type=int, default=8000)
@@ -163,21 +183,37 @@ def main():
     ap.add_argument("--out", default="checkpoints/spiderweb_numpy.npz")
     ap.add_argument("--log-every", type=int, default=10)
     ap.add_argument("--save-every", type=int, default=100)
+    ap.add_argument("--init", default=None, help="start from the weights in this .npz (fine-tuning)")
     args = ap.parse_args()
+    if args.batch < 1 + args.damage + args.noise_damage:
+        ap.error("--batch must be at least 1 + --damage + --noise-damage")
+    noise_std = tuple(float(v) for v in args.noise_std.split(","))
 
     rng = np.random.default_rng(args.seed)
     target = load_target(args.target, args.size, args.pad).astype(np.float32)
     H, W, _ = target.shape
+    init_meta = None
+    if args.init:
+        params, init_meta = load_npz(args.init)
+        args.channels, args.hidden = init_meta["channels"], init_meta["hidden"]
+    else:
+        params = init_params(args.channels, args.hidden, rng)
     C = args.channels
-    params = init_params(C, args.hidden, rng)
     opt = Adam(params)
     seed_state = make_seed(1, H, W, C)[0]
     pool = make_seed(args.pool, H, W, C)
     meta = dict(channels=C, hidden=args.hidden, fire_rate=args.fire_rate,
                 alive_threshold=args.alive_threshold, target=os.path.basename(args.target),
                 target_size=args.size, pad=args.pad, grid=[H, W], trained_by="tools/train_numpy.py",
-                damage=args.damage, pool=args.pool, batch=args.batch,
-                steps=[args.min_steps, args.max_steps])
+                damage=args.damage, noise_damage=args.noise_damage, noise_std=list(noise_std),
+                pool=args.pool, batch=args.batch, steps=[args.min_steps, args.max_steps])
+    done_before = 0
+    if init_meta:  # keep the full history: iterations counts the earlier run too
+        done_before = int(init_meta.get("iterations", 0))
+        meta["fine_tuned_from"] = dict(file=os.path.basename(args.init), iterations=done_before,
+                                       trained_by=init_meta.get("trained_by"),
+                                       damage=init_meta.get("damage"),
+                                       noise_damage=init_meta.get("noise_damage", 0))
     log_path = os.path.splitext(args.out)[0] + "_log.json"
     log = []
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
@@ -190,7 +226,10 @@ def main():
         idx, x0 = idx[order], x0[order]
         x0[0] = seed_state                                      # replace the worst with a fresh seed
         if args.damage:
-            x0[-args.damage:] *= ~circle_masks(args.damage, H, W, rng)[..., None]  # damage the best
+            x0[-args.damage:] *= ~circle_masks(args.damage, H, W, rng)[..., None]  # erase from the best
+        if args.noise_damage:                                   # and add noise to the next best
+            end = args.batch - args.damage
+            noise_damage(x0[end - args.noise_damage:end], rng, args.alive_threshold, noise_std)
 
         n_steps = int(rng.integers(args.min_steps, args.max_steps + 1))
         x, cache = rollout(x0, params, n_steps, rng, args.fire_rate, args.alive_threshold)
@@ -214,7 +253,7 @@ def main():
             print(f"it {it:5d}  loss {loss:.5f}  log10 {np.log10(loss):+.3f}  steps {n_steps}  "
                   f"{el / it:.2f}s/it  elapsed {el / 60:.1f}m", flush=True)
         if it % args.save_every == 0 or it == args.iters:
-            save_npz(args.out, params["W1"], params["b1"], params["W2"], dict(meta, iterations=it))
+            save_npz(args.out, params["W1"], params["b1"], params["W2"], dict(meta, iterations=done_before + it))
             with open(log_path, "w") as f:
                 json.dump(log, f)
 
