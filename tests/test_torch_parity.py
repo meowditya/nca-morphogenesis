@@ -3,6 +3,7 @@
     python tests/test_torch_parity.py
 
 It checks that
+  0. the trainer's noise damage only touches living cells inside its disc,
   1. weights survive the .npz export/import round trip,
   2. nca.model.NCA and nca.numpy_nca produce the same states, step for step,
   3. autograd gradients from the PyTorch model match the hand-written NumPy
@@ -28,6 +29,22 @@ from nca.model import NCA, make_seed  # noqa: E402
 from train_numpy import backward, rollout  # noqa: E402
 
 CKPT = os.path.join(ROOT, "checkpoints", "spiderweb_starter.npz")
+
+
+def test_noise_damage_is_confined():
+    from nca.train import noise_damage
+    model, meta = NCA.from_npz(CKPT)
+    torch.manual_seed(0)
+    x = make_seed(4, 72, 72, meta["channels"])
+    with torch.no_grad():
+        for _ in range(150):
+            x = model(x)
+        before = x.clone()
+        noise_damage(x[1:3], model, (0.1, 0.6))           # the slice form the trainer uses
+    changed = (x != before).any(dim=1)                     # (4, H, W)
+    living = model.alive(before)[:, 0]
+    assert not changed[[0, 3]].any(), "only the selected samples may change"
+    assert changed[1:3].any() and not (changed & ~living).any(), "noise only on living cells"
 
 
 def test_roundtrip():
@@ -103,6 +120,7 @@ def test_gradient_parity(steps=12):
 
 
 if __name__ == "__main__":
+    test_noise_damage_is_confined()
     test_roundtrip()
     test_forward_parity()
     test_gradient_parity()

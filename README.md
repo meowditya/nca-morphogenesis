@@ -36,14 +36,21 @@ python tools/evaluate.py --checkpoint checkpoints/spiderweb.npz  # growth / pers
 
 The defaults follow the Distill "regenerating" experiment: 40 px target with 16 px
 padding (a 72×72 grid), 16 channels, 128 hidden units, fire rate 0.5, a pool of
-1024 samples, batch 8, 64-96 steps per rollout, 3 damaged samples per batch,
-Adam at 2e-3 dropping to 2e-4 after 2000 of 8000 iterations, and per-tensor gradient
-normalisation. Useful flags:
+1024 samples, batch 8, 64-96 steps per rollout, Adam at 2e-3 dropping to 2e-4 after
+2000 of 8000 iterations, and per-tensor gradient normalisation.
+
+One deliberate difference: Distill erases a disc from 3 samples per batch. Here 2
+samples get a disc erased and 2 more get Gaussian noise (standard deviation 0.1-0.6)
+on the living cells inside a disc. The brief asks for regeneration after injected
+noise, and a model trained only on erasure does not recover from noise (see below).
+`--damage 3 --noise-damage 0` gives the original Distill recipe. Useful flags:
 
 | flag | what it does |
 |---|---|
 | `--target path.png` | any RGBA image with a transparent background |
-| `--damage 0` | growing-only model (no regeneration training) |
+| `--damage N` / `--noise-damage N` | samples per batch erased / noised (both 0 = growing-only model) |
+| `--noise-std lo,hi` | range of the noise strength used in training |
+| `--init model.npz` | start from existing weights (fine-tuning); iteration counts carry over |
 | `--grad-checkpoint` | recomputes activations in the backward pass; much less GPU memory |
 | `--resume run.pt` | continue a run; `.pt` holds weights, optimiser, schedule and the pool |
 | `--device cpu\|cuda\|mps` | defaults to the first available |
@@ -61,16 +68,17 @@ GPU runtime and run
 python tests/test_torch_parity.py   # run this first: PyTorch model == NumPy port (forward and gradients)
 python tests/test_gradients.py      # hand-written NumPy backward pass vs finite differences
 python tests/test_engine.py         # engine, brushes, protocol, WebSocket endpoint
+python tests/test_training.py       # noise damage and fine-tuning in the NumPy trainer
 ```
 
-With pytest installed, `python -m pytest tests -s` runs all three.
+With pytest installed, `python -m pytest tests -s` runs them all.
 
 ## How the pieces map to the brief
 
 | brief | where |
 |---|---|
 | **NCA architecture**: cellular update rule as a light 2-D conv net in PyTorch | `nca/model.py`: fixed depthwise perception (identity, Sobel x/y), two 1×1 convs (48 → 128 → 16, last layer zero-initialised), stochastic per-cell updates, alive masking on alpha |
-| **Training**: grow from one seed with a persistent sample pool and random damage | `nca/train.py`: pool of 1024, worst sample reseeded, best 3 get a random disc erased, BPTT over 64-96 steps |
+| **Training**: grow from one seed with a persistent sample pool and random damage | `nca/train.py`: pool of 1024, worst sample reseeded, the best get a random disc erased (2) or noised (2), BPTT over 64-96 steps |
 | **Simulation engine**: frame-by-frame recursive grid updates, state persistence, temporal flow | `sim/engine.py` (grid state, walls, brushes, PyTorch or NumPy backend) and the fixed-rate loop in `server.py` (pause, single-step, steps-per-frame) |
 | **Interactive sandbox and transport**: WebSocket canvas, inject noise, paint obstacles, erase | `server.py` (Starlette WebSocket), `sim/session.py` (protocol), `web/` (canvas client) |
 
@@ -149,8 +157,28 @@ so a full 8,000-iteration PyTorch run should improve both.
 
 The model was only ever trained on erasure. In the same evaluation, noise injected into
 the centre at strength 0.1 does little harm (0.0027 → 0.0031 after 300 steps), but at
-0.3 and 0.6 it leaves scars that only partly heal (0.0050 and 0.0112). Training with
-noise augmentation, alongside the disc damage, is the fix.
+0.3 and 0.6 it leaves scars that only partly heal (0.0050 and 0.0112).
+
+**Noise-damage experiment.** I fine-tuned the starter for 1,200 more iterations with the
+new default damage (2 erased + 2 noised per batch, learning rate 2e-4):
+
+```
+python tools/train_numpy.py --init checkpoints/spiderweb_starter.npz --iters 1200 \
+    --lr 2e-4 --lr-decay-at 1000000 --seed 1 --out checkpoints/spiderweb_ft.npz
+```
+
+| `tools/evaluate.py` measure | starter | after fine-tune |
+|---|---|---|
+| grown, step 200 | 0.0027 | 0.0024 |
+| noise 0.3 / 0.6, then 300 steps | 0.0050 / 0.0112 | 0.0045 / 0.0080 |
+| left running to step 1,000 | 0.0039 | 0.0069 |
+| erase wounds repaired after 200 steps (median) | 86% | 65% |
+
+Noise healing improved, but the web drifted more on long runs, so the fine-tuned weights
+were not adopted. The likely cause is the short run: a fine-tune starts a fresh sample
+pool, so in 1,200 iterations no sample lives long enough to teach long-term stability.
+A full-length run with noise damage from the start, which is what `python -m nca.train`
+now does, avoids that, but it has not been run here; check it with `tools/evaluate.py`.
 
 `nca/model.py` and `nca/train.py` were written but not executed where this was built.
 `tests/test_torch_parity.py` checks them against the NumPy path, whose gradients are
