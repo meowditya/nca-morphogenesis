@@ -1,7 +1,7 @@
 """Reference trainer in pure NumPy, with a hand-written backward pass.
 
-Why this exists: it produced checkpoints/spiderweb_starter.npz in an
-environment where PyTorch could not be installed. It follows the same recipe
+It produced checkpoints/spiderweb_starter.npz and needs only NumPy, which also
+makes it a readable reference for the maths. It follows the same recipe
 as nca/train.py (pool, reseeding, disc damage, loss, per-tensor gradient
 normalisation, Adam and its learning-rate drop), and its gradients are checked
 against finite differences in tests/test_gradients.py. To save time it only
