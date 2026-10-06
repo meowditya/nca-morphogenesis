@@ -1,0 +1,124 @@
+/* Gruvbox dark. Spectral for prose, IBM Plex Mono for labels and numbers. */
+:root {
+  --bg0h: #1d2021; --bg0: #282828; --bg1: #3c3836; --bg2: #504945; --bg3: #665c54; --bg4: #7c6f64;
+  --fg0: #fbf1c7; --fg1: #ebdbb2; --fg2: #d5c4a1; --fg3: #bdae93; --fg4: #a89984; --gray: #928374;
+  --red: #fb4934; --green: #b8bb26; --yellow: #fabd2f; --blue: #83a598;
+  --purple: #d3869b; --aqua: #8ec07c; --orange: #fe8019; --orange-dim: #d65d0e;
+  --serif: "Spectral", Georgia, "Times New Roman", serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --rail: 300px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg0h); color: var(--fg1); }
+body { font: 16px/1.55 var(--serif); }
+
+.layout { display: grid; grid-template-columns: var(--rail) minmax(0, 1fr); min-height: 100vh; }
+
+/* ---- left rail ---- */
+.rail {
+  position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+  padding: 20px 16px 32px; border-right: 1px solid var(--bg2); background: var(--bg0);
+  display: flex; flex-direction: column; gap: 22px;
+}
+.masthead h1 { font: 600 1.35rem/1.2 var(--serif); margin: 0 0 6px; color: var(--fg0); letter-spacing: 0.01em; }
+.masthead p { margin: 0; color: var(--fg3); font-size: 0.92rem; font-style: italic; }
+
+/* ---- labelled bordered boxes ---- */
+.box { position: relative; border: 1px solid var(--bg3); border-radius: 3px; padding: 16px 12px 12px; }
+.box::before {
+  content: attr(data-label); position: absolute; top: -0.7em; left: 10px; padding: 0 6px;
+  background: var(--bg0); color: var(--yellow);
+  font: 500 0.7rem/1.4 var(--mono); letter-spacing: 0.12em; text-transform: uppercase;
+}
+.stage .box::before { background: var(--bg0h); }
+
+details.detail { padding-top: 10px; }
+details.detail summary {
+  cursor: pointer; font: 500 0.72rem/1.4 var(--mono); letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--aqua); list-style: none;
+}
+details.detail summary::-webkit-details-marker { display: none; }
+details.detail summary::before { content: "+ "; color: var(--gray); }
+details.detail[open] summary::before { content: "- "; }
+details.detail p { font-size: 0.9rem; color: var(--fg2); margin: 10px 0 0; }
+
+/* ---- controls ---- */
+button, select {
+  font: 500 0.78rem/1 var(--mono); color: var(--fg1); background: var(--bg1);
+  border: 1px solid var(--bg3); border-radius: 3px; padding: 8px 8px; cursor: pointer;
+}
+button:hover, select:hover { border-color: var(--fg4); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+button:active { background: var(--bg2); }
+kbd {
+  font: 500 0.66rem/1 var(--mono); color: var(--gray); border: 1px solid var(--bg3); border-radius: 2px;
+  padding: 2px 4px; margin-right: 6px; background: var(--bg0h);
+}
+
+.tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
+.tool { display: flex; align-items: center; justify-content: flex-start; }
+.tool.active { background: var(--bg2); border-color: var(--orange); color: var(--fg0); }
+.tool.active kbd { color: var(--orange); border-color: var(--orange-dim); }
+
+.buttons { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 12px; }
+.buttons button { display: flex; align-items: center; }
+#pause.paused { border-color: var(--yellow); color: var(--yellow); }
+
+.slider { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: baseline; margin-top: 8px; }
+.slider span, .select span { font: 0.72rem/1.3 var(--mono); color: var(--fg4); letter-spacing: 0.04em; }
+.slider output { font: 500 0.78rem/1.3 var(--mono); color: var(--fg1); }
+.slider input { grid-column: 1 / -1; width: 100%; accent-color: var(--orange); }
+
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.select { display: flex; flex-direction: column; gap: 4px; }
+.select select { width: 100%; padding: 7px 6px; }
+
+.stats, .keys { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; }
+.stats dt { font: 0.72rem/1.6 var(--mono); color: var(--fg4); }
+.stats dd { margin: 0; font: 500 0.82rem/1.6 var(--mono); color: var(--fg0); text-align: right; font-variant-numeric: tabular-nums; }
+.keys { margin-top: 10px; font-size: 0.88rem; }
+.keys dt { white-space: nowrap; }
+.keys dd { margin: 0; color: var(--fg2); }
+
+/* ---- stage ---- */
+.stage { padding: 28px 28px 40px; display: flex; justify-content: center; align-items: flex-start; }
+.dish-box { width: min(100%, calc(100vh - 60px), 900px); padding: 18px 14px 12px; }
+
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.tag {
+  font: 0.7rem/1.4 var(--mono); color: var(--fg3); border: 1px solid var(--bg3); border-radius: 2px;
+  padding: 2px 7px; background: var(--bg0);
+}
+.tag b { color: var(--fg1); font-weight: 500; }
+#conn[data-state="open"] { color: var(--green); border-color: #79740e; }
+#conn[data-state="connecting"] { color: var(--yellow); border-color: #b57614; }
+#conn[data-state="closed"] { color: var(--red); border-color: #9d0006; }
+
+.dish { position: relative; width: 100%; aspect-ratio: 1 / 1; border: 1px solid var(--bg3); background: var(--bg0); }
+.dish canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+#grid { image-rendering: pixelated; image-rendering: crisp-edges; }
+#overlay { cursor: crosshair; touch-action: none; }
+.hint { margin: 10px 2px 0; font-size: 0.86rem; color: var(--fg4); font-style: italic; }
+
+/* ---- narrow screens: rail stacks above the dish ---- */
+@media (max-width: 860px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .rail { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--bg2); padding: 16px; }
+  .stage { padding: 20px 16px 32px; order: -1; }
+  .dish-box { width: 100%; }
+}
+
+/* ---- print: the dish snapshot and the explanatory text, no controls ---- */
+@media print {
+  html, body { background: #fff; color: #000; }
+  .layout { display: block; }
+  .rail { position: static; height: auto; border: 0; background: #fff; }
+  .rail .box:not(.detail), .hint, #conn, button, select, input { display: none !important; }
+  details.detail { display: block; }
+  details.detail > *:not(summary) { display: block !important; }
+  .box, .dish { border-color: #999; }
+  .box::before, .stage .box::before { background: #fff; color: #444; }
+  .tag { color: #333; border-color: #999; background: #fff; }
+  #overlay { display: none; }
+}
