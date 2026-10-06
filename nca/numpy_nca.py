@@ -77,8 +77,8 @@ def update(x, params, rows=None):
     """The learned residual dx = W2^T relu(W1^T perceive(x) + b1).
 
     rows: optional flat indices (into B*H*W) of the cells to evaluate; every
-    other cell gets dx = 0. step() passes the pre-alive cells, which is exact
-    because everything outside them is zeroed by the life mask anyway.
+    other cell gets dx = 0. step() passes the cells alive before the step,
+    because only those may update (the same rule as nca/model.py).
     Returns (dx, rows, h) where h holds the hidden activations of those rows.
     """
     B, H, W, C = x.shape
@@ -97,7 +97,8 @@ def update(x, params, rows=None):
 
 
 def step(x, params, fire_mask, alive_threshold=0.1):
-    """One NCA step. fire_mask: (B, H, W, 1) bool, which cells update this step."""
+    """One NCA step: living cells that fire add their update; then cells with no
+    mature neighbour before and after are cleared. fire_mask: (B, H, W, 1) bool."""
     pre = alive_mask(x, alive_threshold)
     dx, _, _ = update(x, params, np.flatnonzero(pre))
     x = x + dx * fire_mask

@@ -7,9 +7,16 @@ channels. Every step, each cell
    Sobel-y) applied per channel -> a 48-vector,
 2. maps that through a tiny per-cell MLP (two 1x1 convolutions) to a
    residual update dx,
-3. applies dx only if a random "fire" mask says so (asynchronous updates),
+3. applies dx only if it was alive before the step and a random "fire"
+   mask says so (asynchronous updates),
 4. dies (state zeroed) unless some cell in its 3x3 neighbourhood has
    alpha > 0.1 both before and after the update.
+
+Step 3 differs slightly from the Distill code, where every cell, dead or
+alive, adds its update and dead cells are cleared only at the end of the step.
+There, an empty cell's temporary update can keep its neighbours alive for that
+step. Masking the update with the pre-step life mask removes that effect, and
+it is the rule nca/numpy_nca.py and the bundled checkpoint use.
 
 Weights are stored in the framework-neutral format of nca/checkpoint.py so the
 simulator can also run them with NumPy.
@@ -54,7 +61,7 @@ class NCA(nn.Module):
         fire_rate = self.fire_rate if fire_rate is None else fire_rate
         pre = self.alive(x)
         fire = torch.rand_like(x[:, :1]) < fire_rate
-        x = x + self.update(x) * fire.to(x.dtype)
+        x = x + self.update(x) * (fire & pre).to(x.dtype)   # only living cells update
         return x * (pre & self.alive(x)).to(x.dtype)
 
     # ---- framework-neutral weights -------------------------------------------------

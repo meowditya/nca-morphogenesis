@@ -17,7 +17,7 @@ pattern regrowing. Made with `tools/evaluate.py` and the bundled starter model.*
 - **Model**: a lightweight PyTorch NCA. Each cell has 16 channels and perceives its
   neighbours through fixed identity and Sobel filters. A small network shared by all
   cells, two 1×1 convolutions with 8,320 parameters in total, computes each cell's
-  update. Cells update at random times, and a cell dies when no cell in its 3×3
+  update. Living cells update at random times, and a cell dies when no cell in its 3×3
   neighbourhood (itself included) is mature, meaning alpha above 0.1.
 - **Training**: grows a target image from one seed pixel. It uses a persistent sample
   pool, and damages samples during training by erasing discs and by injecting noise,
@@ -59,7 +59,13 @@ One deliberate difference: Distill erases a disc from 3 samples per batch. Here,
 samples get a disc erased and 2 more get Gaussian noise (standard deviation 0.1-0.6) on
 the living cells inside a disc. The sandbox lets users inject noise, and a model trained
 only on erasure does not recover from it (see [Starter model](#starter-model)).
-`--damage 3 --noise-damage 0` gives the original Distill recipe.
+`--damage 3 --noise-damage 0` gives the original Distill damage recipe.
+
+A second small difference: only cells that are alive at the start of a step may update.
+In the Distill code every cell adds its update and dead cells are cleared only at the
+end of the step, so an empty cell's momentary update can keep a neighbour alive. Here
+that cannot happen, and the PyTorch model, the NumPy version and the bundled checkpoint
+all use the same rule (`tests/test_torch_parity.py` checks it).
 
 | flag | what it does |
 |---|---|
