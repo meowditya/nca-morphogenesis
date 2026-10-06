@@ -4,8 +4,9 @@ Training recipe
   * every sample starts from (or continues from) the persistent sample pool,
   * the worst sample in each batch is replaced by a fresh seed, so the model
     never forgets how to grow from one pixel,
-  * the best `--damage` samples get a random disc erased, so the model learns
-    to regrow missing parts,
+  * the best `--damage` samples get a random disc erased, and the next
+    `--noise-damage` samples get Gaussian noise inside a random disc, so the
+    model learns to regrow missing parts and to clean up scrambled ones,
   * the batch is unrolled for a random 64-96 steps and the RGBA channels are
     compared with the target (MSE); the gradient flows back through all steps,
   * gradients are normalised per tensor before Adam (stabilises long rollouts),
@@ -30,6 +31,7 @@ import torch
 from PIL import Image
 from torch.utils.checkpoint import checkpoint
 
+from .checkpoint import load_npz
 from .model import NCA, make_seed
 from .target import load_target, to_rgb
 
@@ -51,6 +53,16 @@ def circle_masks(n, h, w, device):
     cx, cy = torch.rand(2, n, 1, 1, device=device) - 0.5
     r = torch.rand(n, 1, 1, device=device) * 0.3 + 0.1
     return (((xs - cx) / r) ** 2 + ((ys - cy) / r) ** 2) < 1.0
+
+
+def noise_damage(x, model, std_range):
+    """In place: Gaussian noise on every channel of the living cells inside a random disc."""
+    n, _, H, W = x.shape
+    disc = circle_masks(n, H, W, x.device)[:, None]                       # (n, 1, H, W)
+    hit = (disc & model.alive(x)).to(x.dtype)
+    lo, hi = std_range
+    std = torch.rand(n, 1, 1, 1, device=x.device) * (hi - lo) + lo
+    x += torch.randn_like(x) * std * hit
 
 
 def per_sample_loss(x, target):
@@ -75,7 +87,10 @@ def main():
     ap.add_argument("--alive-threshold", type=float, default=0.1)
     ap.add_argument("--batch", type=int, default=8)
     ap.add_argument("--pool", type=int, default=1024)
-    ap.add_argument("--damage", type=int, default=3, help="samples per batch that get a random disc erased (0 = growing only)")
+    ap.add_argument("--damage", type=int, default=2, help="samples per batch that get a random disc erased")
+    ap.add_argument("--noise-damage", type=int, default=2,
+                    help="further samples per batch that get Gaussian noise inside a random disc")
+    ap.add_argument("--noise-std", default="0.1,0.6", help="range the noise standard deviation is drawn from")
     ap.add_argument("--min-steps", type=int, default=64)
     ap.add_argument("--max-steps", type=int, default=96)
     ap.add_argument("--iters", type=int, default=8000)
@@ -89,12 +104,21 @@ def main():
     ap.add_argument("--log-every", type=int, default=50)
     ap.add_argument("--save-every", type=int, default=500)
     ap.add_argument("--resume", default=None, help="a .pt file written by a previous run")
+    ap.add_argument("--init", default=None, help="start from the weights in this .npz (fine-tuning)")
     args = ap.parse_args()
 
     if args.resume:  # restore the original run's settings, but keep this run's --iters/--out/--device
         state = torch.load(args.resume, map_location="cpu", weights_only=False)
         keep = {k: getattr(args, k) for k in ("iters", "out", "device", "resume", "log_every", "save_every")}
-        args = argparse.Namespace(**{**state["args"], **keep})
+        args = argparse.Namespace(**{**vars(args), **state["args"], **keep})
+
+    if args.batch < 1 + args.damage + args.noise_damage:
+        raise SystemExit("--batch must be at least 1 + --damage + --noise-damage")
+    noise_std = tuple(float(v) for v in str(args.noise_std).split(","))
+    init_meta = None
+    if args.init and not args.resume:
+        _, init_meta = load_npz(args.init)
+        args.channels, args.hidden = init_meta["channels"], init_meta["hidden"]
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -106,7 +130,12 @@ def main():
     target = torch.from_numpy(target_np).permute(2, 0, 1)[None].to(device)
     C = args.channels
 
-    model = NCA(C, args.hidden, args.fire_rate, args.alive_threshold).to(device)
+    if init_meta:
+        model, _ = NCA.from_npz(args.init)
+        model.fire_rate, model.alive_threshold = args.fire_rate, args.alive_threshold
+        model = model.to(device)
+    else:
+        model = NCA(C, args.hidden, args.fire_rate, args.alive_threshold).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     sched = torch.optim.lr_scheduler.MultiStepLR(opt, milestones=[args.lr_decay_at], gamma=0.1)
     seed = make_seed(1, H, W, C, device)
@@ -126,16 +155,27 @@ def main():
         print(f"resumed {args.resume} at iteration {start}")
 
     meta = dict(target=os.path.basename(args.target), target_size=args.size, pad=args.pad, grid=[H, W],
-                trained_by="nca/train.py", damage=args.damage, pool=args.pool, batch=args.batch,
+                trained_by="nca/train.py", damage=args.damage, noise_damage=args.noise_damage,
+                noise_std=list(noise_std), pool=args.pool, batch=args.batch,
                 steps=[args.min_steps, args.max_steps])
+    done_before = 0
+    if init_meta:  # keep the full history: iterations counts the earlier run too
+        done_before = int(init_meta.get("iterations", 0))
+        meta["fine_tuned_from"] = dict(file=os.path.basename(args.init), iterations=done_before,
+                                       trained_by=init_meta.get("trained_by"),
+                                       damage=init_meta.get("damage"),
+                                       noise_damage=init_meta.get("noise_damage", 0))
+    if args.resume:  # a resumed fine-tune keeps its provenance and iteration offset
+        meta, done_before = state.get("meta", meta), state.get("done_before", done_before)
 
     def step_fn(x):
         return model(x)
 
     def save(it):
-        model.export_npz(args.out, **meta, iterations=it)
+        model.export_npz(args.out, **meta, iterations=done_before + it)
         torch.save(dict(model=model.state_dict(), opt=opt.state_dict(), sched=sched.state_dict(),
-                        pool=pool.cpu(), log=log, iter=it, args=vars(args)), base + ".pt")
+                        pool=pool.cpu(), log=log, iter=it, args=vars(args), meta=meta,
+                        done_before=done_before), base + ".pt")
         with open(base + "_log.json", "w") as f:
             json.dump(log, f)
 
@@ -150,7 +190,10 @@ def main():
         x0[:1] = seed                                                    # worst -> fresh seed
         if args.damage:
             intact = (~circle_masks(args.damage, H, W, device)).to(x0.dtype)[:, None]
-            x0[-args.damage:] *= intact                                  # best -> damaged
+            x0[-args.damage:] *= intact                                  # best -> erased
+        if args.noise_damage:                                            # next best -> noised
+            end = args.batch - args.damage
+            noise_damage(x0[end - args.noise_damage:end], model, noise_std)
 
         x = x0
         for _ in range(random.randint(args.min_steps, args.max_steps)):
