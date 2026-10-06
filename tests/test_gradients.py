@@ -72,6 +72,29 @@ def crop_matches_full_grid(seed=0, steps=30):
     return np.abs(xc - xf).max(), int((np.abs(xf).sum(-1) > 0).sum())
 
 
+def test_step_rule_matches_masked_full_grid():
+    """nca.numpy_nca.step must equal the PyTorch rule: compute dx on the full grid,
+    apply it only to cells alive before the step, then clear cells with no mature
+    neighbour before and after. (Computing dx for dead cells too, as the Distill code
+    does, gives a different result, which is what this guards against.)"""
+    from nca.checkpoint import load_npz
+    from nca.numpy_nca import alive_mask, make_seed, step, update
+    p, meta = load_npz(os.path.join(ROOT, "checkpoints", "spiderweb_starter.npz"))
+    thr, rng = meta["alive_threshold"], np.random.default_rng(0)
+    a = b = make_seed(1, 48, 48, meta["channels"])
+    worst = 0.0
+    for _ in range(60):
+        fire = rng.random((1, 48, 48, 1)) < 0.5
+        pre = alive_mask(b, thr)
+        dx, _, _ = update(b, p)                       # full grid, like a conv net
+        b = b + dx * (fire & pre)
+        b = b * (pre & alive_mask(b, thr))
+        a = step(a, p, fire, thr)
+        worst = max(worst, float(np.abs(a - b).max()))
+    print(f"numpy step vs full-grid masked rule: max |diff| {worst:.1e}")
+    assert worst < 1e-4
+
+
 def test_crop_matches_full_grid():
     diff, live = crop_matches_full_grid()
     print(f"cropped vs full-grid rollout: max |diff| {diff:.1e} over {live} live cells")
@@ -86,6 +109,7 @@ def test_backward_matches_finite_differences():
 
 
 if __name__ == "__main__":
+    test_step_rule_matches_masked_full_grid()
     test_crop_matches_full_grid()
     test_backward_matches_finite_differences()
     print("gradient check passed")

@@ -70,7 +70,7 @@
     <details class="box detail">
       <summary>How it works</summary>
       <p>Every cell carries 16 numbers: red, green, blue, alpha and 12 hidden channels it can use as chemical signals. A cell with alpha above 0.1 is mature, cells next to a mature one are growing, and everything else is dead and stays zero.</p>
-      <p>Each step a cell senses its 3×3 neighbourhood through fixed identity and Sobel filters (48 values). It feeds them through a small two-layer network shared by every cell to get an update, which it applies on a coin flip. Nothing is global: no cell knows where it is.</p>
+      <p>Each step a cell senses its 3×3 neighbourhood through fixed identity and Sobel filters (48 values). It feeds them through a small two-layer network shared by every cell to get an update, which a living cell applies on a coin flip. Nothing is global: no cell knows where it is.</p>
       <p>Training starts from a single seed cell and unrolls 64-96 steps. The loss compares the RGBA channels with the target. A pool of past results is reused so the pattern learns to stay stable, and random discs are erased from the best samples so it learns to regrow.</p>
       <p>Walls are cells forced to zero every step. The network never saw them during training, so how it routes around them is pure generalisation.</p>
     </details>

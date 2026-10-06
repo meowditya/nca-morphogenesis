@@ -3,7 +3,7 @@ torch>=2.1
 # everything else
 numpy>=1.24
 pillow>=9.0
-starlette>=0.37
+starlette>=1.6
 uvicorn[standard]>=0.27   # [standard] pulls in the `websockets` package uvicorn needs for /ws
 # tests only (Starlette's TestClient)
-httpx>=0.27
+httpx2
