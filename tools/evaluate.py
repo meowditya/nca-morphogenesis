@@ -1,6 +1,6 @@
 """Measure growth, persistence and regeneration of a trained checkpoint.
 
-    python tools/evaluate.py --checkpoint checkpoints/spiderweb_starter.npz
+    python tools/evaluate.py --checkpoint checkpoints/spiderweb.npz
 
 Runs with NumPy only, on the grid size the model was trained on:
   1. growth      - from one seed cell; MSE against the target every 10 steps
@@ -69,7 +69,7 @@ def strip(images, labels, scale=3):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--checkpoint", default="checkpoints/spiderweb_starter.npz")
+    ap.add_argument("--checkpoint", default="checkpoints/spiderweb.npz")
     ap.add_argument("--target", default=None, help="defaults to data/<target in checkpoint metadata>")
     ap.add_argument("--grow", type=int, default=200)
     ap.add_argument("--long", type=int, default=1000)

@@ -14,8 +14,8 @@ Training recipe
 
 Usage (from the project root):
 
-    python -m nca.train --target data/spiderweb_128.png --out checkpoints/spiderweb.npz
-    python -m nca.train --resume checkpoints/spiderweb.pt         # continue a run
+    python -m nca.train --target data/spiderweb_128.png --out checkpoints/my_web.npz
+    python -m nca.train --resume checkpoints/my_web.pt            # continue a run
 
 Outputs: <out>.npz (weights for the simulator), <out>.pt (full training
 state for --resume), <out>_log.json (loss per iteration) and preview PNGs.
@@ -100,7 +100,8 @@ def main():
                     help="recompute activations in the backward pass (much less memory, ~30%% slower)")
     ap.add_argument("--device", default="auto", help="auto | cpu | cuda | mps")
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--out", default="checkpoints/spiderweb.npz")
+    ap.add_argument("--out", default="checkpoints/run.npz",
+                    help="weights file to write (also <out>.pt, <out>_log.json, <out>_previews/)")
     ap.add_argument("--log-every", type=int, default=50)
     ap.add_argument("--save-every", type=int, default=500)
     ap.add_argument("--resume", default=None, help="a .pt file written by a previous run")
