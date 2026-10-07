@@ -7,10 +7,10 @@ inject noise and build walls while it runs. Based on
 (Mordvintsev et al., Distill 2020). The default target is the 🕸 spider-web emoji
 from Google's Noto Color Emoji font.
 
-![growth from one cell (top) and regrowth after a random wound (bottom)](checkpoints/spiderweb_starter_eval.png)
+![growth from one cell (top) and regrowth after a random wound (bottom)](checkpoints/spiderweb_eval.png)
 
 *Top: growth from a single seed cell. Bottom: the target, then a randomly wounded
-pattern regrowing. Made with `tools/evaluate.py` and the bundled starter model.*
+pattern regrowing. Made with `tools/evaluate.py` and the bundled trained model.*
 
 ## Features
 
@@ -32,12 +32,12 @@ pattern regrowing. Made with `tools/evaluate.py` and the bundled starter model.*
 ## Quick start
 
 ```bash
-python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
+python -m venv .venv && source .venv/bin/activate     # Windows PowerShell: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python server.py                                       # then open http://localhost:8000
 ```
 
-The sandbox loads `checkpoints/spiderweb_starter.npz` by default. With PyTorch installed
+The sandbox loads the trained model, `checkpoints/spiderweb.npz`, by default. With PyTorch installed
 it runs on PyTorch (CUDA when available, otherwise CPU; pass `--device mps` on Apple
 silicon), otherwise on NumPy. Both implement the same update rule. To run only the
 sandbox, without PyTorch, `pip install numpy starlette "uvicorn[standard]"` is enough.
@@ -45,9 +45,9 @@ sandbox, without PyTorch, `pip install numpy starlette "uvicorn[standard]"` is e
 ## Train a model
 
 ```bash
-python -m nca.train --out checkpoints/spiderweb.npz             # uses a GPU if one is available
-python tools/evaluate.py --checkpoint checkpoints/spiderweb.npz  # growth, stability, regrowth, noise
-python server.py --checkpoint checkpoints/spiderweb.npz
+python -m nca.train --out checkpoints/my_web.npz             # uses a GPU if one is available
+python tools/evaluate.py --checkpoint checkpoints/my_web.npz  # growth, stability, regrowth, noise
+python server.py --checkpoint checkpoints/my_web.npz
 ```
 
 The defaults follow the Distill "regenerating" experiment: a 40 px target with 16 px of
@@ -58,13 +58,13 @@ samples, batch 8, 64-96 steps per rollout, Adam at 2e-3 dropping to 2e-4 after 2
 One deliberate difference: Distill erases a disc from 3 samples per batch. Here, 2
 samples get a disc erased and 2 more get Gaussian noise (standard deviation 0.1-0.6) on
 the living cells inside a disc. The sandbox lets users inject noise, and a model trained
-only on erasure does not recover from it (see [Starter model](#starter-model)).
+only on erasure does not recover from it (see [Results](#results)).
 `--damage 3 --noise-damage 0` gives the original Distill damage recipe.
 
 A second small difference: only cells that are alive at the start of a step may update.
 In the Distill code every cell adds its update and dead cells are cleared only at the
 end of the step, so an empty cell's momentary update can keep a neighbour alive. Here
-that cannot happen, and the PyTorch model, the NumPy version and the bundled checkpoint
+that cannot happen, and the PyTorch model, the NumPy version and the bundled checkpoints
 all use the same rule (`tests/test_torch_parity.py` checks it).
 
 | flag | what it does |
@@ -77,15 +77,16 @@ all use the same rule (`tests/test_torch_parity.py` checks it).
 | `--grad-checkpoint` | recompute activations in the backward pass; much less GPU memory |
 | `--device cpu\|cuda\|mps` | defaults to the first available |
 
-With `--out checkpoints/spiderweb.npz`, training writes the following to `checkpoints/`:
+With `--out checkpoints/my_web.npz` (the default is `checkpoints/run.npz`), training writes
+the following to `checkpoints/`:
 
-- `spiderweb.npz`: the weights the simulator loads.
-- `spiderweb.pt`: the full training state, for `--resume`.
-- `spiderweb_log.json`: the loss at every iteration.
-- `spiderweb_previews/`: a PNG of the batch every `--log-every` iterations.
+- `my_web.npz`: the weights the simulator loads.
+- `my_web.pt`: the full training state, for `--resume`.
+- `my_web_log.json`: the loss at every iteration.
+- `my_web_previews/`: a PNG of the batch every `--log-every` iterations.
 
 **On Colab:** upload the zip, switch to a GPU runtime, and run
-`!unzip -q nca-morphogenesis.zip && cd nca-morphogenesis && pip install -r requirements.txt && python -m nca.train`.
+`!unzip -q nca-morphogenesis.zip && cd nca-morphogenesis && pip install -r requirements.txt && python -m nca.train --out checkpoints/my_web.npz`.
 
 `tools/train_numpy.py` is a NumPy version of the same trainer, with a hand-written
 backward pass. It is slow, but it needs no PyTorch and is useful for checking the maths.
@@ -172,63 +173,60 @@ tools/evaluate.py     growth / stability / regeneration / noise metrics and film
 tests/                parity, gradient, engine/server and training tests
 docs/                 sandbox screenshot
 data/                 spiderweb_128.png target, rendered from Noto Color Emoji (SIL OFL 1.1)
-checkpoints/          spiderweb_starter.npz, its training log and evaluation
+checkpoints/          spiderweb.npz (trained model) and spiderweb_starter.npz, with training logs and evaluations
 ```
 
-## Starter model
+## Results
 
-`checkpoints/spiderweb_starter.npz` was trained with `tools/train_numpy.py` for 4,000
-iterations, half the Distill schedule, using the original erase-only damage
-(`--damage 3 --noise-damage 0`). The numbers below come from one run of
-`python tools/evaluate.py`; they are mean squared error against the target, and vary a
-little with the random seed.
+`checkpoints/spiderweb.npz` was trained with `python -m nca.train` using the defaults
+above (8,000 iterations, 2 erased and 2 noised samples per batch) on an RTX 3050 GPU.
+The training loss fell from 0.023 (mean of the first 100 iterations) to 0.00062 (mean
+of the last 100). The numbers below come from `python tools/evaluate.py`; they are mean
+squared error against the target, and vary a little with the random seed.
 
 | state | MSE |
 |---|---|
 | empty grid | 0.0296 |
-| after 60 / 80 / 200 growth steps | 0.0092 / 0.0032 / 0.0027 |
-| left running: step 500 / 1,000 / 2,000 | 0.0028 / 0.0039 / 0.0055 (step 2,000 needs `--long 2000`) |
-| 8 random wounds: just after, then +50 and +200 steps (median) | 0.0055, 0.0035, 0.0030 |
+| after 60 / 80 / 200 growth steps | 0.0031 / 0.00059 / 0.00008 |
+| left running: step 500 / 1,000 / 2,000 | 0.00006 / 0.00005 / 0.00005 (step 2,000 needs `--long 2000`) |
+| 8 random wounds: just after, then +50 and +200 steps (median) | 0.0031, 0.00018, 0.00006 |
+| noise 0.1 / 0.3 / 0.6 at the centre: just after | 0.00048 / 0.0036 / 0.0150 |
+| the same, 300 steps later | 0.00006 / 0.00006 / 0.00005 |
 
-![the sandbox: grown web, an erase stroke, and the regrown web](docs/sandbox_wound.png)
+- **Growth:** the web, inner rings included, forms in about 80 steps and keeps refining.
+- **Stability:** the error stays flat from step 1,000 to step 2,000, so there is no drift.
+- **Repair:** a median of 98% of a wound's extra error is gone after 50 steps, and all of
+  it after 100.
+- **Noise:** even strength 0.6 heals completely within 300 steps.
 
-The web grows in about 80 steps. 200 steps after a wound, a median of 86% of the extra
-error is gone, and the outline and spokes come back solidly. Its limits:
+![the live sandbox with the trained model: grown, a strip erased, regrown, noise injected, healed](docs/sandbox_wound.png)
 
-- **Faint inner rings.** The rings inside the web never fully formed.
-- **Slow drift.** Left alone, the web slowly thickens, as the rising error after step 500 shows.
-- **No noise healing.** It was trained only on erasure. Noise of strength 0.1 does little
-  harm (0.0027 → 0.0031 after 300 steps), but noise of 0.3 and 0.6 leaves scars that only
-  partly heal (0.0050 and 0.0112).
+*The live sandbox with the trained model: a grown web, a strip erased, the web 200 steps
+later, noise of strength 0.6 injected, and the web 300 steps later.*
 
-A full 8,000-iteration run with `python -m nca.train`, which includes noise damage by
-default, is the way to address all three.
+### Earlier models
 
-### Noise-damage fine-tune
+`checkpoints/spiderweb_starter.npz` came first. It was trained with the NumPy trainer
+(`tools/train_numpy.py`) for 4,000 iterations, using the original erase-only damage, and
+the tests use it as a fixed reference model.
 
-As a first test of noise damage, the starter was fine-tuned for 1,200 more iterations
-with the current defaults:
-
-```bash
-python tools/train_numpy.py --init checkpoints/spiderweb_starter.npz --iters 1200 \
-    --lr 2e-4 --lr-decay-at 1000000 --seed 1 --out checkpoints/spiderweb_ft.npz
-```
-
-| `tools/evaluate.py` measure | starter | after fine-tune |
+| `tools/evaluate.py` measure | NumPy starter | trained model |
 |---|---|---|
-| grown, step 200 | 0.0027 | 0.0024 |
-| noise 0.3 / 0.6, then 300 steps | 0.0050 / 0.0112 | 0.0045 / 0.0080 |
-| left running to step 1,000 | 0.0039 | 0.0069 |
-| erase wounds repaired after 200 steps (median) | 86% | 65% |
+| grown, step 200 | 0.0027 | 0.00008 |
+| left running to step 1,000 | 0.0039 | 0.00005 |
+| wound repaired after 200 steps (median) | 86% | 101% |
+| noise 0.3 / 0.6, then 300 steps | 0.0050 / 0.0112 | 0.00006 / 0.00005 |
 
-Noise healing improved, but the web drifted more on long runs, so the fine-tuned weights
-were not adopted. The likely cause is the short run. A fine-tune starts a fresh sample
-pool, so in 1,200 iterations no sample lives long enough to teach long-term stability. A
-full-length run with noise damage from the start avoids that problem.
+A repair figure above 100% means the error ended slightly lower than before the wound.
+The starter never formed the inner rings, slowly thickened when left running, and scarred
+under noise. A 1,200-iteration fine-tune of the starter with noise damage improved its noise
+healing (0.0045 / 0.0080) but made it drift more (0.0069 at step 1,000), likely because a
+short run restarts the sample pool. Training with noise damage from the start, as above,
+fixed all three problems.
 
 ## Next steps
 
-- Run the full PyTorch training and compare it with the starter using `tools/evaluate.py`.
+- Train other emoji (one model each) and add a picker to the sandbox to switch between them.
 - Train other targets (any transparent PNG), or a growing-only model (`--damage 0 --noise-damage 0`),
   and compare how each reacts to the same wound in the sandbox.
 - Add walls to training (zeroing random rectangles every step), so that obstacle
