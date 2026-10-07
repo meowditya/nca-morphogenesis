@@ -47,6 +47,7 @@ sandbox, without PyTorch, `pip install numpy starlette "uvicorn[standard]"` is e
 ```bash
 python -m nca.train --out checkpoints/my_web.npz             # uses a GPU if one is available
 python tools/evaluate.py --checkpoint checkpoints/my_web.npz  # growth, stability, regrowth, noise
+python tools/stress_test.py --checkpoint checkpoints/my_web.npz  # robustness beyond training
 python server.py --checkpoint checkpoints/my_web.npz
 ```
 
@@ -170,6 +171,7 @@ server.py             Starlette app: static client + /ws stream loop
 web/                  canvas client (index.html, app.js, style.css)
 tools/train_numpy.py  NumPy trainer with a hand-written backward pass
 tools/evaluate.py     growth / stability / regeneration / noise metrics and filmstrips
+tools/stress_test.py  robustness beyond the training conditions (many seeds, unseen damage)
 tests/                parity, gradient, engine/server and training tests
 docs/                 sandbox screenshot
 data/                 spiderweb_128.png target, rendered from Noto Color Emoji (SIL OFL 1.1)
@@ -190,19 +192,63 @@ squared error against the target, and vary a little with the random seed.
 | after 60 / 80 / 200 growth steps | 0.0031 / 0.00059 / 0.00008 |
 | left running: step 500 / 1,000 / 2,000 | 0.00006 / 0.00005 / 0.00005 (step 2,000 needs `--long 2000`) |
 | 8 random wounds: just after, then +50 and +200 steps (median) | 0.0031, 0.00018, 0.00006 |
+| the same 8 wounds: recovered after 200 steps | 7 of 8 (the worst ends at 0.0030) |
 | noise 0.1 / 0.3 / 0.6 at the centre: just after | 0.00048 / 0.0036 / 0.0150 |
 | the same, 300 steps later | 0.00006 / 0.00006 / 0.00005 |
 
 - **Growth:** the web, inner rings included, forms in about 80 steps and keeps refining.
 - **Stability:** the error stays flat from step 1,000 to step 2,000, so there is no drift.
-- **Repair:** a median of 98% of a wound's extra error is gone after 50 steps, and all of
-  it after 100.
+- **Repair:** in the typical case 98% of a wound's extra error is gone after 50 steps, and
+  all of it after 100. Not every wound heals, though: one of the 8 here did not, and the
+  stress tests below show why.
 - **Noise:** even strength 0.6 heals completely within 300 steps.
 
 ![the live sandbox with the trained model: grown, a strip erased, regrown, noise injected, healed](docs/sandbox_wound.png)
 
 *The live sandbox with the trained model: a grown web, a strip erased, the web 200 steps
 later, noise of strength 0.6 injected, and the web 300 steps later.*
+
+### Beyond the training conditions
+
+`tools/evaluate.py` only uses damage of the kinds and sizes seen in training, so its numbers
+are a best case. `python tools/stress_test.py` goes further. It grows 16 webs from
+independent random seeds, damages them in ways the model never practised, runs each for
+1,000 more steps, and counts a web as recovered when its error ends below twice the
+undamaged level.
+
+| test | recovered |
+|---|---|
+| growth, 16 random seeds | all 16; worst MSE 0.00011 at step 200, 0.00006 at step 5,000 |
+| erase a disc of training size (r 4-14 px) | 41 of 48 |
+| ...the wound misses the hub (the web's centre) | 33 of 33 |
+| ...the wound reaches the hub | 8 of 15 |
+| erase a bigger disc (r 16-22 px) | 5 of 16 |
+| erase the left half | 16 of 16 |
+| erase all but one quarter | 0 of 16 |
+| erase a 6 px slot through the centre | 0 of 16 |
+| erase the hub (centre disc, r 8 px) | 0 of 16 |
+| noise 0.6 near the centre | 16 of 16 |
+| noise 1.0 near the centre | 16 of 16 |
+| noise 2.0 near the centre | 9 of 16 |
+| noise 0.6 over the whole web | 12 of 16 |
+| noise 1.0 on the 12 hidden channels only | 1 of 16 |
+| grow from 4 off-centre seeds in a 160×160 dish | all 4 (IoU ≥ 0.994, nothing grows outside the web) |
+
+What this shows:
+
+- **Not a quirk of the test.** Results hold across random seeds and over 5,000 steps.
+  The web grows the same way anywhere in a larger dish, so it does not depend on the
+  grid edges or on starting in the centre.
+- **The hub is the weak point.** Every training-sized wound that missed the centre healed
+  (33 of 33), and so did cutting off the left half. When the hub is destroyed, the web
+  in the runs inspected starts to regrow and then settles into a malformed version.
+  Losing most of the web, or scrambling the hidden channels (the cells' internal
+  "chemical signals") everywhere, is not recoverable either.
+- **Noise:** local noise heals well beyond the training range (strength 1.0 every time),
+  but not reliably at 2.0, and noise over the whole web heals in 12 of 16 runs.
+
+This is expected for an NCA: it learns to repair the damage it practised on. More
+training, or training wounds aimed at the hub more often, are the obvious next steps.
 
 ### Earlier models
 
@@ -226,6 +272,8 @@ fixed all three problems.
 
 ## Next steps
 
+- Make hub wounds heal reliably: train longer, or aim more training wounds at the centre,
+  and check the result with `tools/stress_test.py`.
 - Train other emoji (one model each) and add a picker to the sandbox to switch between them.
 - Train other targets (any transparent PNG), or a growing-only model (`--damage 0 --noise-damage 0`),
   and compare how each reacts to the same wound in the sandbox.
