@@ -138,6 +138,11 @@ def main():
               + "  ".join(f"+{t}: {100 * v:.0f}%" for t, v in repaired.items()))
     else:
         print("damage repaired: no trial's disc hit the pattern noticeably")
+    last = marks[-1]
+    recovered = sum(tr["after"][last] < 2 * tr["before"] + 1e-4 for tr in trials)
+    worst = max(trials, key=lambda tr: tr["after"][last])
+    print(f"recovered after +{last} (MSE below 2x its pre-damage value + 1e-4): {recovered}/{len(trials)}; "
+          f"worst trial: {worst['before']:.5f} -> damaged {worst['damaged']:.5f} -> {worst['after'][last]:.5f}")
 
     # 4: noise (runs last so it does not change the random stream of the sections above)
     noise = []
@@ -164,7 +169,8 @@ def main():
     sheet.save(os.path.join(args.out, f"{name}_eval.png"))
     with open(os.path.join(args.out, f"{name}_eval.json"), "w") as f:
         json.dump(dict(checkpoint=args.checkpoint, meta=meta, empty_mse=empty_mse, growth=growth,
-                       persistence=long_losses, regeneration=trials, repaired_median=repaired, noise=noise), f, indent=1)
+                       persistence=long_losses, regeneration=trials, repaired_median=repaired,
+                       recovered=int(recovered), noise=noise), f, indent=1)
     print(f"wrote {args.out}/{name}_eval.png and .json")
 
 

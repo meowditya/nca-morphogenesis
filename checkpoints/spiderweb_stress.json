@@ -1,0 +1,139 @@
+{
+ "growth": {
+  "t200": {
+   "median": 7.275745156221092e-05,
+   "worst": 0.00010669262701412663
+  },
+  "iou200": {
+   "median": 0.9921104536489151,
+   "worst": 0.9882121807465619
+  },
+  "t1000": {
+   "median": 5.257423981674947e-05,
+   "worst": 5.6330572988372296e-05
+  },
+  "t5000": {
+   "median": 5.2292802138254046e-05,
+   "worst": 5.5558779422426596e-05
+  },
+  "iou5000": {
+   "median": 0.9940828402366864,
+   "worst": 0.9921104536489151
+  }
+ },
+ "erase: disc r 4-14 (training range)": {
+  "damaged_median": 0.004732702858746052,
+  "end_median": 5.274789873510599e-05,
+  "end_worst": 0.019268015399575233,
+  "recovered": 41,
+  "trials": 48,
+  "iou_end_min": 0.33562822719449226,
+  "hub": {
+   "reached": 15,
+   "recovered": 8,
+   "missed": 33,
+   "missed_recovered": 33
+  }
+ },
+ "erase: disc r 16-22 (bigger)": {
+  "damaged_median": 0.014004972763359547,
+  "end_median": 0.018302856013178825,
+  "end_worst": 0.02570769190788269,
+  "recovered": 5,
+  "trials": 16,
+  "iou_end_min": 0.13059701492537312
+ },
+ "erase: left half": {
+  "damaged_median": 0.014169535599648952,
+  "end_median": 9.213221346726641e-05,
+  "end_worst": 0.0001379638706566766,
+  "recovered": 16,
+  "trials": 16,
+  "iou_end_min": 0.9882121807465619
+ },
+ "erase: all but one quarter": {
+  "damaged_median": 0.02271077036857605,
+  "end_median": 0.020869269967079163,
+  "end_worst": 0.025549745187163353,
+  "recovered": 0,
+  "trials": 16,
+  "iou_end_min": 0.2579034941763727
+ },
+ "erase: 6 px slot through the centre": {
+  "damaged_median": 0.005162229761481285,
+  "end_median": 0.009977350942790508,
+  "end_worst": 0.010756111703813076,
+  "recovered": 0,
+  "trials": 16,
+  "iou_end_min": 0.5772357723577236
+ },
+ "erase: the hub (centre disc r 8)": {
+  "damaged_median": 0.00592944398522377,
+  "end_median": 0.009320257231593132,
+  "end_worst": 0.010330279357731342,
+  "recovered": 0,
+  "trials": 16,
+  "iou_end_min": 0.5855263157894737
+ },
+ "noise 0.6, r 8 (training range)": {
+  "damaged_median": 0.014547225087881088,
+  "end_median": 5.1903021812904626e-05,
+  "end_worst": 5.6470813433406875e-05,
+  "recovered": 16,
+  "trials": 16,
+  "iou_end_min": 0.9901574803149606
+ },
+ "noise 1.0, r 8 (stronger)": {
+  "damaged_median": 0.03974826633930206,
+  "end_median": 4.992845424567349e-05,
+  "end_worst": 5.6548480642959476e-05,
+  "recovered": 16,
+  "trials": 16,
+  "iou_end_min": 0.9920948616600791
+ },
+ "noise 2.0, r 8 (much stronger)": {
+  "damaged_median": 0.15973077714443207,
+  "end_median": 5.289196997182444e-05,
+  "end_worst": 0.02764287404716015,
+  "recovered": 9,
+  "trials": 16,
+  "iou_end_min": 0.35244922341696533
+ },
+ "noise 0.6 over the whole web": {
+  "damaged_median": 0.07882621884346008,
+  "end_median": 5.3640811529476196e-05,
+  "end_worst": 0.003106535179540515,
+  "recovered": 12,
+  "trials": 16,
+  "iou_end_min": 0.8928571428571429
+ },
+ "noise 1.0 on hidden channels only": {
+  "damaged_median": 5.2292802138254046e-05,
+  "end_median": 0.023907585069537163,
+  "end_worst": 0.05361754819750786,
+  "recovered": 1,
+  "trials": 16,
+  "iou_end_min": 0.249811320754717
+ },
+ "offcentre_160": {
+  "mse": [
+   6.913964898558334e-05,
+   5.535464151762426e-05,
+   4.9396894610254094e-05,
+   5.361566581996158e-05
+  ],
+  "iou": [
+   0.9960474308300395,
+   0.9940828402366864,
+   0.996039603960396,
+   0.9960474308300395
+  ],
+  "alpha_outside": [
+   0.0,
+   -3.0517578125e-05,
+   0.0,
+   -3.0517578125e-05
+  ]
+ },
+ "undamaged_median_mse": 5.2292802138254046e-05
+}

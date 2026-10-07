@@ -3,3 +3,4 @@ __pycache__/
 checkpoints/*.pt
 checkpoints/*_previews/
 .venv/
+.DS_Store
