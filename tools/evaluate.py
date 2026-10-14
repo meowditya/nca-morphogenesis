@@ -69,7 +69,7 @@ def strip(images, labels, scale=3):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--checkpoint", default="checkpoints/spiderweb.npz")
+    ap.add_argument("--checkpoint", default="checkpoints/spiderweb/spiderweb.npz")
     ap.add_argument("--target", default=None, help="defaults to data/<target in checkpoint metadata>")
     ap.add_argument("--grow", type=int, default=200)
     ap.add_argument("--long", type=int, default=1000)
@@ -77,7 +77,7 @@ def main():
     ap.add_argument("--trials", type=int, default=8)
     ap.add_argument("--noise", default="0.1,0.3,0.6", help="comma-separated noise strengths ('' to skip)")
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--out", default="checkpoints")
+    ap.add_argument("--out", default=None, help="output directory (default: checkpoint's specific folder)")
     args = ap.parse_args()
     if args.long <= args.grow or args.grow < 10 or args.regrow < 5 or args.trials < 1:
         ap.error("need --long > --grow >= 10, --regrow >= 5 and --trials >= 1")
@@ -158,7 +158,20 @@ def main():
         print(f"noise {strength}: MSE {mse(grown):.5f} -> {mse(noisy):.5f} right after -> {mse(after):.5f} after 300 steps")
 
     name = os.path.splitext(os.path.basename(args.checkpoint))[0]
-    os.makedirs(args.out, exist_ok=True)
+    if args.out is not None:
+        out_dir = args.out
+    else:
+        if os.path.isdir(args.checkpoint):
+            out_dir = args.checkpoint
+        else:
+            parent = os.path.dirname(os.path.abspath(args.checkpoint))
+            if os.path.basename(parent) == name:
+                out_dir = parent
+            elif os.path.isdir(os.path.join(parent, name)):
+                out_dir = os.path.join(parent, name)
+            else:
+                out_dir = os.path.join(parent, name)
+    os.makedirs(out_dir, exist_ok=True)
     top = strip([frames[t] for t in grow_frames] + [long_frames[args.long - args.grow]],
                 [f"t={t}" for t in grow_frames] + [f"t={args.long}"])
     bottom = strip([to_rgb(target)] + [regrow_frames[t] for t in marks],
@@ -166,12 +179,12 @@ def main():
     sheet = Image.new("RGB", (max(top.width, bottom.width), top.height + bottom.height + 10), (255, 255, 255))
     sheet.paste(top, (0, 0))
     sheet.paste(bottom, (0, top.height + 10))
-    sheet.save(os.path.join(args.out, f"{name}_eval.png"))
-    with open(os.path.join(args.out, f"{name}_eval.json"), "w") as f:
+    sheet.save(os.path.join(out_dir, f"{name}_eval.png"))
+    with open(os.path.join(out_dir, f"{name}_eval.json"), "w") as f:
         json.dump(dict(checkpoint=args.checkpoint, meta=meta, empty_mse=empty_mse, growth=growth,
                        persistence=long_losses, regeneration=trials, repaired_median=repaired,
                        recovered=int(recovered), noise=noise), f, indent=1)
-    print(f"wrote {args.out}/{name}_eval.png and .json")
+    print(f"wrote {out_dir}/{name}_eval.png and .json")
 
 
 if __name__ == "__main__":

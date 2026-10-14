@@ -34,10 +34,10 @@ from nca.target import load_target  # noqa: E402
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--checkpoint", default=os.path.join(ROOT, "checkpoints", "spiderweb.npz"))
+    ap.add_argument("--checkpoint", default=os.path.join(ROOT, "checkpoints", "spiderweb", "spiderweb.npz"))
     ap.add_argument("--trials", type=int, default=16)
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--out", default=None, help="JSON file for all numbers (default: <checkpoint>_stress.json)")
+    ap.add_argument("--out", default=None, help="JSON file for all numbers (default: <checkpoint_folder>/<checkpoint>_stress.json)")
     args = ap.parse_args()
 
     params, meta = load_npz(args.checkpoint)
@@ -160,7 +160,17 @@ def main():
           + "  alpha outside the web's square " + ", ".join(f"{v:.3f}" for v in stray))
 
     results["undamaged_median_mse"] = base
-    out = args.out or os.path.splitext(args.checkpoint)[0] + "_stress.json"
+    if args.out:
+        out = args.out
+    else:
+        name = os.path.splitext(os.path.basename(args.checkpoint))[0]
+        ckpt_dir = os.path.dirname(os.path.abspath(args.checkpoint))
+        if os.path.basename(ckpt_dir) == name:
+            out = os.path.join(ckpt_dir, f"{name}_stress.json")
+        elif os.path.isdir(os.path.join(ckpt_dir, name)):
+            out = os.path.join(ckpt_dir, name, f"{name}_stress.json")
+        else:
+            out = os.path.splitext(args.checkpoint)[0] + "_stress.json"
     with open(out, "w") as f:
         json.dump(results, f, indent=1)
     print(f"\nwrote {out}")

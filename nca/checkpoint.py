@@ -13,6 +13,7 @@ k = 0 identity, 1 Sobel-x, 2 Sobel-y. nca/model.py (PyTorch) and
 nca/numpy_nca.py both use this ordering, so weights move between them freely.
 """
 import json
+import os
 
 import numpy as np
 
@@ -34,6 +35,17 @@ def save_npz(path, W1, b1, W2, meta):
 
 
 def load_npz(path):
+    if not os.path.isfile(path):
+        if os.path.isdir(path):
+            stem = os.path.basename(os.path.normpath(path))
+            candidate = os.path.join(path, f"{stem}.npz")
+            if os.path.isfile(candidate):
+                path = candidate
+        else:
+            stem = os.path.splitext(os.path.basename(path))[0]
+            candidate = os.path.join(os.path.dirname(path), stem, os.path.basename(path))
+            if os.path.isfile(candidate):
+                path = candidate
     with np.load(path, allow_pickle=False) as z:
         meta = json.loads(str(z["meta"]))
         params = {k: z[k].astype(np.float32) for k in ("W1", "b1", "W2")}

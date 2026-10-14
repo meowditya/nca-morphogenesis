@@ -7,7 +7,7 @@ inject noise and build walls while it runs. Based on
 (Mordvintsev et al., Distill 2020). The default target is the 🕸 spider-web emoji
 from Google's Noto Color Emoji font.
 
-![growth from one cell (top) and regrowth after a random wound (bottom)](checkpoints/spiderweb_eval.png)
+![growth from one cell (top) and regrowth after a random wound (bottom)](checkpoints/spiderweb/spiderweb_eval.png)
 
 *Top: growth from a single seed cell. Bottom: the target, then a randomly wounded
 pattern regrowing. Made with `tools/evaluate.py` and the bundled trained model.*

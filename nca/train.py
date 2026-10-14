@@ -7,8 +7,20 @@ Training recipe
   * the best `--damage` samples get a random disc erased, and the next
     `--noise-damage` samples get Gaussian noise inside a random disc, so the
     model learns to regrow missing parts and to clean up scrambled ones,
-  * the batch is unrolled for a random 64-96 steps and the RGBA channels are
-    compared with the target (MSE); the gradient flows back through all steps,
+  * a further `--seed-damage` samples get a disc erased that is guaranteed to
+    cover the grid centre (the original seed cell), forcing the model to
+    regenerate even when its "origin" is destroyed,
+  * the rollout is split in half; at the midpoint, `--redamage` of the best
+    samples get a random disc erased, so the model trains on sequential
+    damage-regrow-damage cycles (hidden-state resilience),
+  * after the full rollout the RGBA channels are compared with the target
+    (MSE) plus a small `--overflow-weight` penalty on hidden channels that
+    exceed 1.0 in absolute value (keeps regrown hidden states stable),
+  * a consistency loss (`--consistency-weight`) penalises hidden-channel drift:
+    for damaged samples the regrown hidden state is compared to its pre-damage
+    snapshot, forcing the model to reproduce the same internal state,
+  * per-step Gaussian noise (`--hidden-noise`) is injected into hidden channels
+    during training, making the model tolerant of small state perturbations,
   * gradients are normalised per tensor before Adam (stabilises long rollouts),
   * the final states are written back into the pool.
 
@@ -55,6 +67,21 @@ def circle_masks(n, h, w, device):
     return (((xs - cx) / r) ** 2 + ((ys - cy) / r) ** 2) < 1.0
 
 
+def centre_kill_masks(n, h, w, device, min_r=0.15, max_r=0.4):
+    """n random discs guaranteed to cover the grid centre, for seed-cell damage.
+
+    The disc is jittered slightly off-centre but the jitter is small enough
+    that the disc always covers the (0, 0) normalised coordinate (grid centre).
+    """
+    xs = torch.linspace(-1.0, 1.0, w, device=device)[None, None, :]
+    ys = torch.linspace(-1.0, 1.0, h, device=device)[None, :, None]
+    r = torch.rand(n, 1, 1, device=device) * (max_r - min_r) + min_r
+    max_jitter = r * 0.4  # |jitter| < r so the disc still covers (0, 0)
+    cx = (torch.rand(n, 1, 1, device=device) - 0.5) * 2 * max_jitter
+    cy = (torch.rand(n, 1, 1, device=device) - 0.5) * 2 * max_jitter
+    return (((xs - cx) / r) ** 2 + ((ys - cy) / r) ** 2) < 1.0
+
+
 def noise_damage(x, model, std_range):
     """In place: Gaussian noise on every channel of the living cells inside a random disc."""
     n, _, H, W = x.shape
@@ -90,9 +117,19 @@ def main():
     ap.add_argument("--damage", type=int, default=2, help="samples per batch that get a random disc erased")
     ap.add_argument("--noise-damage", type=int, default=2,
                     help="further samples per batch that get Gaussian noise inside a random disc")
+    ap.add_argument("--seed-damage", type=int, default=2,
+                    help="samples per batch that get a disc erased covering the centre (seed cell)")
     ap.add_argument("--noise-std", default="0.1,0.6", help="range the noise standard deviation is drawn from")
     ap.add_argument("--min-steps", type=int, default=64)
     ap.add_argument("--max-steps", type=int, default=96)
+    ap.add_argument("--redamage", type=int, default=2,
+                    help="samples re-damaged with a random disc mid-rollout for multi-round resilience")
+    ap.add_argument("--overflow-weight", type=float, default=1e-3,
+                    help="penalty on hidden channels exceeding 1.0 in abs value (stabilises regrown states)")
+    ap.add_argument("--consistency-weight", type=float, default=0.05,
+                    help="penalty on hidden-channel drift between pre-damage and regrown state")
+    ap.add_argument("--hidden-noise", type=float, default=0.02,
+                    help="std of Gaussian noise added to hidden channels each step during training")
     ap.add_argument("--iters", type=int, default=8000)
     ap.add_argument("--lr", type=float, default=2e-3)
     ap.add_argument("--lr-decay-at", type=int, default=2000, help="lr drops 10x at this iteration")
@@ -109,12 +146,18 @@ def main():
     args = ap.parse_args()
 
     if args.resume:  # restore the original run's settings, but keep this run's --iters/--out/--device
-        state = torch.load(args.resume, map_location="cpu", weights_only=False)
+        resume_path = args.resume
+        if not os.path.isfile(resume_path):
+            stem = os.path.splitext(os.path.basename(resume_path))[0]
+            candidate = os.path.join(os.path.dirname(resume_path), stem, os.path.basename(resume_path))
+            if os.path.isfile(candidate):
+                resume_path = candidate
+        state = torch.load(resume_path, map_location="cpu", weights_only=False)
         keep = {k: getattr(args, k) for k in ("iters", "out", "device", "resume", "log_every", "save_every")}
         args = argparse.Namespace(**{**vars(args), **state["args"], **keep})
 
-    if args.batch < 1 + args.damage + args.noise_damage:
-        raise SystemExit("--batch must be at least 1 + --damage + --noise-damage")
+    if args.batch < 1 + args.damage + args.noise_damage + args.seed_damage:
+        raise SystemExit("--batch must be at least 1 + --damage + --noise-damage + --seed-damage")
     noise_std = tuple(float(v) for v in str(args.noise_std).split(","))
     init_meta = None
     if args.init and not args.resume:
@@ -143,10 +186,22 @@ def main():
     pool = make_seed(args.pool, H, W, C, device)
     log, start = [], 1
 
-    base = os.path.splitext(args.out)[0]
-    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
-    preview_dir = base + "_previews"
+    out_clean = args.out[:-4] if args.out.endswith(".npz") else args.out
+    parent_dir, weight_name = os.path.split(out_clean)
+    if not parent_dir:
+        parent_dir = "checkpoints"
+    if os.path.basename(parent_dir) == weight_name:
+        weight_dir = parent_dir
+    else:
+        weight_dir = os.path.join(parent_dir, weight_name)
+    os.makedirs(weight_dir, exist_ok=True)
+
+    npz_path = os.path.join(weight_dir, f"{weight_name}.npz")
+    pt_path = os.path.join(weight_dir, f"{weight_name}.pt")
+    log_path = os.path.join(weight_dir, f"{weight_name}_log.json")
+    preview_dir = os.path.join(weight_dir, f"{weight_name}_previews")
     os.makedirs(preview_dir, exist_ok=True)
+
     if args.resume:
         model.load_state_dict(state["model"])
         opt.load_state_dict(state["opt"])
@@ -157,6 +212,7 @@ def main():
 
     meta = dict(target=os.path.basename(args.target), target_size=args.size, pad=args.pad, grid=[H, W],
                 trained_by="nca/train.py", damage=args.damage, noise_damage=args.noise_damage,
+                seed_damage=args.seed_damage,
                 noise_std=list(noise_std), pool=args.pool, batch=args.batch,
                 steps=[args.min_steps, args.max_steps])
     done_before = 0
@@ -165,19 +221,25 @@ def main():
         meta["fine_tuned_from"] = dict(file=os.path.basename(args.init), iterations=done_before,
                                        trained_by=init_meta.get("trained_by"),
                                        damage=init_meta.get("damage"),
-                                       noise_damage=init_meta.get("noise_damage", 0))
+                                       noise_damage=init_meta.get("noise_damage", 0),
+                                       seed_damage=init_meta.get("seed_damage", 0))
     if args.resume:  # a resumed fine-tune keeps its provenance and iteration offset
         meta, done_before = state.get("meta", meta), state.get("done_before", done_before)
 
     def step_fn(x):
-        return model(x)
+        x = model(x)
+        if args.hidden_noise:                                            # per-step hidden noise
+            noise = torch.zeros_like(x)
+            noise[:, 4:].normal_(0, args.hidden_noise)
+            x = x + noise
+        return x
 
     def save(it):
-        model.export_npz(args.out, **meta, iterations=done_before + it)
+        model.export_npz(npz_path, **meta, iterations=done_before + it)
         torch.save(dict(model=model.state_dict(), opt=opt.state_dict(), sched=sched.state_dict(),
                         pool=pool.cpu(), log=log, iter=it, args=vars(args), meta=meta,
-                        done_before=done_before), base + ".pt")
-        with open(base + "_log.json", "w") as f:
+                        done_before=done_before), pt_path)
+        with open(log_path, "w") as f:
             json.dump(log, f)
 
     print(f"device {device}, grid {H}x{W}, {sum(p.numel() for p in model.parameters())} parameters")
@@ -189,18 +251,43 @@ def main():
             order = per_sample_loss(x0, target).argsort(descending=True)  # worst first
         idx, x0 = idx[order], x0[order]
         x0[:1] = seed                                                    # worst -> fresh seed
+        n_dmg = args.damage + args.noise_damage + args.seed_damage
+        dmg_start = args.batch - n_dmg
+        with torch.no_grad():                                            # snapshot for consistency loss
+            pre_damage_hidden = x0[dmg_start:, 4:].clone()
         if args.damage:
             intact = (~circle_masks(args.damage, H, W, device)).to(x0.dtype)[:, None]
             x0[-args.damage:] *= intact                                  # best -> erased
         if args.noise_damage:                                            # next best -> noised
             end = args.batch - args.damage
             noise_damage(x0[end - args.noise_damage:end], model, noise_std)
+        if args.seed_damage:                                             # next -> centre-killed
+            end_sd = args.batch - args.damage - args.noise_damage
+            start_sd = end_sd - args.seed_damage
+            intact_c = (~centre_kill_masks(args.seed_damage, H, W, device)).to(x0.dtype)[:, None]
+            x0[start_sd:end_sd] *= intact_c
 
         x = x0
-        for _ in range(random.randint(args.min_steps, args.max_steps)):
-            x = checkpoint(step_fn, x, use_reentrant=False) if args.grad_checkpoint else model(x)
+        steps = random.randint(args.min_steps, args.max_steps)
+        mid = steps // 2
+        for _ in range(mid):
+            x = checkpoint(step_fn, x, use_reentrant=False) if args.grad_checkpoint else step_fn(x)
+        if args.redamage:                                                # mid-rollout re-damage
+            n_rd = min(args.redamage, args.batch - 1)
+            rd_intact = (~circle_masks(n_rd, H, W, device)).to(x.dtype)[:, None]
+            rd_mask = torch.ones_like(x[:, :1])
+            rd_mask[-n_rd:] = rd_intact
+            x = x * rd_mask
+        for _ in range(steps - mid):
+            x = checkpoint(step_fn, x, use_reentrant=False) if args.grad_checkpoint else step_fn(x)
 
         loss = per_sample_loss(x, target).mean()
+        if args.overflow_weight:                                         # hidden-channel regulariser
+            overflow = (x[:, 4:].abs() - 1.0).clamp(min=0).mean()
+            loss = loss + args.overflow_weight * overflow
+        if args.consistency_weight and n_dmg > 0:                        # hidden-state consistency
+            hidden_diff = ((x[dmg_start:, 4:] - pre_damage_hidden) ** 2).mean()
+            loss = loss + args.consistency_weight * hidden_diff
         loss_v = loss.item()
         if not np.isfinite(loss_v):
             raise SystemExit(f"loss became {loss_v} at iteration {it}; try a lower --lr")
@@ -221,7 +308,7 @@ def main():
             save_preview(os.path.join(preview_dir, f"it{it:05d}.png"), x)
         if it % args.save_every == 0 or it == args.iters:
             save(it)
-    print(f"done: {args.out}")
+    print(f"done: {npz_path}")
 
 
 if __name__ == "__main__":

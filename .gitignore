@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
-checkpoints/*.pt
-checkpoints/*_previews/
 .venv/
 .DS_Store
+
+*.pt
+*_previews/

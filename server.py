@@ -85,7 +85,7 @@ def create_app(checkpoint, size=96, backend="auto", device="auto", fps=30, steps
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--checkpoint", default=os.path.join(ROOT, "checkpoints", "spiderweb.npz"))
+    ap.add_argument("--checkpoint", default=os.path.join(ROOT, "checkpoints", "spiderweb", "spiderweb.npz"))
     ap.add_argument("--size", type=int, default=96, help="grid is size x size cells")
     ap.add_argument("--backend", default="auto", choices=["auto", "torch", "numpy"])
     ap.add_argument("--device", default="auto", help="torch device: auto | cpu | cuda | mps")
