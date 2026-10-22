@@ -1,6 +1,7 @@
 """Real-time NCA sandbox server: serves the web client and streams the grid over WebSockets.
 
-    python server.py --checkpoint checkpoints/spiderweb.npz
+    python server.py                                  # the default model, preserve-hidden_nohn
+    python server.py --checkpoint checkpoints/spiderweb/spiderweb.npz
     # then open http://localhost:8000
 
 Every browser tab gets its own Simulation. Per connection, a loop runs at a
@@ -85,7 +86,7 @@ def create_app(checkpoint, size=96, backend="auto", device="auto", fps=30, steps
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--checkpoint", default=os.path.join(ROOT, "checkpoints", "spiderweb", "spiderweb.npz"))
+    ap.add_argument("--checkpoint", default=os.path.join(ROOT, "checkpoints", "preserve-hidden_nohn", "preserve-hidden_nohn.npz"))
     ap.add_argument("--size", type=int, default=96, help="grid is size x size cells")
     ap.add_argument("--backend", default="auto", choices=["auto", "torch", "numpy"])
     ap.add_argument("--device", default="auto", help="torch device: auto | cpu | cuda | mps")

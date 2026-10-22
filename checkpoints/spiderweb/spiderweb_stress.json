@@ -28,6 +28,7 @@
   "recovered": 41,
   "trials": 48,
   "iou_end_min": 0.33562822719449226,
+  "recovered_allowing_shift": 41,
   "hub": {
    "reached": 15,
    "recovered": 8,
@@ -41,7 +42,8 @@
   "end_worst": 0.02570769190788269,
   "recovered": 5,
   "trials": 16,
-  "iou_end_min": 0.13059701492537312
+  "iou_end_min": 0.13059701492537312,
+  "recovered_allowing_shift": 5
  },
  "erase: left half": {
   "damaged_median": 0.014169535599648952,
@@ -49,7 +51,8 @@
   "end_worst": 0.0001379638706566766,
   "recovered": 16,
   "trials": 16,
-  "iou_end_min": 0.9882121807465619
+  "iou_end_min": 0.9882121807465619,
+  "recovered_allowing_shift": 16
  },
  "erase: all but one quarter": {
   "damaged_median": 0.02271077036857605,
@@ -57,7 +60,8 @@
   "end_worst": 0.025549745187163353,
   "recovered": 0,
   "trials": 16,
-  "iou_end_min": 0.2579034941763727
+  "iou_end_min": 0.2579034941763727,
+  "recovered_allowing_shift": 7
  },
  "erase: 6 px slot through the centre": {
   "damaged_median": 0.005162229761481285,
@@ -65,7 +69,8 @@
   "end_worst": 0.010756111703813076,
   "recovered": 0,
   "trials": 16,
-  "iou_end_min": 0.5772357723577236
+  "iou_end_min": 0.5772357723577236,
+  "recovered_allowing_shift": 0
  },
  "erase: the hub (centre disc r 8)": {
   "damaged_median": 0.00592944398522377,
@@ -73,7 +78,8 @@
   "end_worst": 0.010330279357731342,
   "recovered": 0,
   "trials": 16,
-  "iou_end_min": 0.5855263157894737
+  "iou_end_min": 0.5855263157894737,
+  "recovered_allowing_shift": 0
  },
  "noise 0.6, r 8 (training range)": {
   "damaged_median": 0.014547225087881088,
@@ -81,7 +87,8 @@
   "end_worst": 5.6470813433406875e-05,
   "recovered": 16,
   "trials": 16,
-  "iou_end_min": 0.9901574803149606
+  "iou_end_min": 0.9901574803149606,
+  "recovered_allowing_shift": 16
  },
  "noise 1.0, r 8 (stronger)": {
   "damaged_median": 0.03974826633930206,
@@ -89,7 +96,8 @@
   "end_worst": 5.6548480642959476e-05,
   "recovered": 16,
   "trials": 16,
-  "iou_end_min": 0.9920948616600791
+  "iou_end_min": 0.9920948616600791,
+  "recovered_allowing_shift": 16
  },
  "noise 2.0, r 8 (much stronger)": {
   "damaged_median": 0.15973077714443207,
@@ -97,7 +105,8 @@
   "end_worst": 0.02764287404716015,
   "recovered": 9,
   "trials": 16,
-  "iou_end_min": 0.35244922341696533
+  "iou_end_min": 0.35244922341696533,
+  "recovered_allowing_shift": 10
  },
  "noise 0.6 over the whole web": {
   "damaged_median": 0.07882621884346008,
@@ -105,7 +114,8 @@
   "end_worst": 0.003106535179540515,
   "recovered": 12,
   "trials": 16,
-  "iou_end_min": 0.8928571428571429
+  "iou_end_min": 0.8928571428571429,
+  "recovered_allowing_shift": 12
  },
  "noise 1.0 on hidden channels only": {
   "damaged_median": 5.2292802138254046e-05,
@@ -113,24 +123,52 @@
   "end_worst": 0.05361754819750786,
   "recovered": 1,
   "trials": 16,
-  "iou_end_min": 0.249811320754717
+  "iou_end_min": 0.249811320754717,
+  "recovered_allowing_shift": 1
+ },
+ "erase: right half": {
+  "damaged_median": 0.015516705811023712,
+  "end_median": 0.01066167838871479,
+  "end_worst": 0.0185941681265831,
+  "recovered": 6,
+  "trials": 16,
+  "iou_end_min": 0.38621794871794873,
+  "recovered_allowing_shift": 8
+ },
+ "erase: top half": {
+  "damaged_median": 0.014900090172886848,
+  "end_median": 4.9555681471247226e-05,
+  "end_worst": 5.4018561058910564e-05,
+  "recovered": 16,
+  "trials": 16,
+  "iou_end_min": 0.9921104536489151,
+  "recovered_allowing_shift": 16
+ },
+ "erase: bottom half": {
+  "damaged_median": 0.01478726975619793,
+  "end_median": 7.096595072653145e-05,
+  "end_worst": 0.018503956496715546,
+  "recovered": 10,
+  "trials": 16,
+  "iou_end_min": 0.423943661971831,
+  "recovered_allowing_shift": 12
  },
  "offcentre_160": {
   "mse": [
-   6.913964898558334e-05,
-   5.535464151762426e-05,
-   4.9396894610254094e-05,
-   5.361566581996158e-05
+   5.256416625343263e-05,
+   5.20593675901182e-05,
+   5.518266698345542e-05,
+   0.00010000454494729638
   ],
   "iou": [
+   0.9921104536489151,
    0.9960474308300395,
    0.9940828402366864,
-   0.996039603960396,
-   0.9960474308300395
+   0.9881889763779528
   ],
   "alpha_outside": [
-   0.0,
    -3.0517578125e-05,
+   0.0,
    0.0,
    -3.0517578125e-05
   ]

@@ -79,7 +79,7 @@ def test_step_rule_matches_masked_full_grid():
     does, gives a different result, which is what this guards against.)"""
     from nca.checkpoint import load_npz
     from nca.numpy_nca import alive_mask, make_seed, step, update
-    p, meta = load_npz(os.path.join(ROOT, "checkpoints", "spiderweb_starter.npz"))
+    p, meta = load_npz(os.path.join(ROOT, "checkpoints", "spiderweb_starter", "spiderweb_starter.npz"))
     thr, rng = meta["alive_threshold"], np.random.default_rng(0)
     a = b = make_seed(1, 48, 48, meta["channels"])
     worst = 0.0

@@ -17,7 +17,7 @@ from nca.checkpoint import load_npz  # noqa: E402
 from nca.numpy_nca import alive_mask, make_seed, step  # noqa: E402
 from train_numpy import circle_masks, noise_damage  # noqa: E402
 
-CKPT = os.path.join(ROOT, "checkpoints", "spiderweb_starter.npz")
+CKPT = os.path.join(ROOT, "checkpoints", "spiderweb_starter", "spiderweb_starter.npz")
 
 
 def grown_state(steps=150):

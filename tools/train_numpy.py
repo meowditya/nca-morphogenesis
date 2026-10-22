@@ -1,6 +1,6 @@
 """Reference trainer in pure NumPy, with a hand-written backward pass.
 
-It produced checkpoints/spiderweb_starter.npz and needs only NumPy, which also
+It produced checkpoints/spiderweb_starter/spiderweb_starter.npz and needs only NumPy, which also
 makes it a readable reference for the maths. It follows the same recipe
 as nca/train.py (pool, reseeding, disc damage, loss, per-tensor gradient
 normalisation, Adam and its learning-rate drop), and its gradients are checked
@@ -15,7 +15,7 @@ The starter checkpoint was made with the original Distill damage settings
 (from the project root):
 
     python tools/train_numpy.py --iters 4000 --damage 3 --noise-damage 0 \
-        --out checkpoints/spiderweb_starter.npz
+        --out checkpoints/spiderweb_starter/spiderweb_starter.npz
 """
 import argparse
 import json
