@@ -100,8 +100,9 @@ def main():
                     help="recompute activations in the backward pass (much less memory, ~30%% slower)")
     ap.add_argument("--device", default="auto", help="auto | cpu | cuda | mps")
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--out", default="checkpoints/run.npz",
-                    help="weights file to write (also <out>.pt, <out>_log.json, <out>_previews/)")
+    ap.add_argument("--out", default=None,
+                    help="run name, e.g. checkpoints/my_web: writes checkpoints/my_web/my_web.npz, .pt, _log.json "
+                         "and _previews/ (default: checkpoints/run, or the --resume run's own folder)")
     ap.add_argument("--log-every", type=int, default=50)
     ap.add_argument("--save-every", type=int, default=500)
     ap.add_argument("--resume", default=None, help="a .pt file written by a previous run")
@@ -118,6 +119,8 @@ def main():
         state = torch.load(resume_path, map_location="cpu", weights_only=False)
         keep = {k: getattr(args, k) for k in ("iters", "out", "device", "resume", "log_every", "save_every")}
         args = argparse.Namespace(**{**vars(args), **state["args"], **keep})
+    if args.out is None:  # a resumed run continues in its own folder unless --out says otherwise
+        args.out = os.path.splitext(resume_path)[0] if args.resume else os.path.join("checkpoints", "run")
 
     if args.batch < 1 + args.damage + args.noise_damage:
         raise SystemExit("--batch must be at least 1 + --damage + --noise-damage")
