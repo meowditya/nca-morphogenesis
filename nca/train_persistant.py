@@ -211,8 +211,9 @@ def main():
         print(f"resumed {args.resume} at iteration {start}")
 
     meta = dict(target=os.path.basename(args.target), target_size=args.size, pad=args.pad, grid=[H, W],
-                trained_by="nca/train.py", damage=args.damage, noise_damage=args.noise_damage,
-                seed_damage=args.seed_damage,
+                trained_by="nca/train_persistant.py", damage=args.damage, noise_damage=args.noise_damage,
+                seed_damage=args.seed_damage, redamage=args.redamage, hidden_noise=args.hidden_noise,
+                consistency_weight=args.consistency_weight, overflow_weight=args.overflow_weight,
                 noise_std=list(noise_std), pool=args.pool, batch=args.batch,
                 steps=[args.min_steps, args.max_steps])
     done_before = 0

@@ -58,6 +58,27 @@ def test_fine_tune_run():
         assert bad.returncode != 0, "a batch too small for the damage settings must be rejected"
 
 
+def test_persistent_trainer_records_settings():
+    """nca/train_persistant.py must save every damage and loss setting in the checkpoint."""
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        print("skip test_persistent_trainer_records_settings: PyTorch not installed")
+        return
+    with tempfile.TemporaryDirectory() as d:
+        out = os.path.join(d, "pt")
+        cmd = [sys.executable, "-m", "nca.train_persistant", "--init", CKPT, "--device", "cpu",
+               "--iters", "2", "--pool", "16", "--batch", "8", "--min-steps", "8", "--max-steps", "10",
+               "--save-every", "1", "--log-every", "1", "--lr", "2e-4",
+               "--hidden-noise", "0", "--consistency-weight", "0", "--redamage", "1", "--out", out]
+        subprocess.run(cmd, check=True, cwd=ROOT, capture_output=True)
+        _, meta = load_npz(os.path.join(out, "pt.npz"))
+        assert meta["trained_by"] == "nca/train_persistant.py"
+        assert meta["hidden_noise"] == 0 and meta["consistency_weight"] == 0
+        assert meta["redamage"] == 1 and meta["overflow_weight"] == 1e-3
+        assert meta["seed_damage"] == 2 and meta["batch"] == 8
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
