@@ -10,6 +10,9 @@ Training recipe
   * a further `--seed-damage` samples get a disc erased that is guaranteed to
     cover the grid centre (the original seed cell), forcing the model to
     regenerate even when its "origin" is destroyed,
+  * a further `--half-damage` samples lose everything on one side of a random
+    straight line close to the centre, so the model learns to regrow half the
+    web from the other half without the regrown web drifting off its place,
   * the rollout is split in half; at the midpoint, `--redamage` of the best
     samples get a random disc erased, so the model trains on sequential
     damage-regrow-damage cycles (hidden-state resilience),
@@ -82,6 +85,20 @@ def centre_kill_masks(n, h, w, device, min_r=0.15, max_r=0.4):
     return (((xs - cx) / r) ** 2 + ((ys - cy) / r) ** 2) < 1.0
 
 
+def halfplane_masks(n, h, w, device, max_offset=0.15):
+    """n masks that are True on one side of a random line passing near the grid centre.
+
+    The line has a uniformly random direction and lies at most `max_offset`
+    (in the [-1, 1] grid coordinates) from the centre, so each mask covers
+    roughly half the grid and the cut usually runs through the web's hub.
+    """
+    xs = torch.linspace(-1.0, 1.0, w, device=device)[None, None, :]
+    ys = torch.linspace(-1.0, 1.0, h, device=device)[None, :, None]
+    theta = torch.rand(n, 1, 1, device=device) * 2 * torch.pi
+    offset = (torch.rand(n, 1, 1, device=device) * 2 - 1) * max_offset
+    return xs * torch.cos(theta) + ys * torch.sin(theta) < offset
+
+
 def noise_damage(x, model, std_range):
     """In place: Gaussian noise on every channel of the living cells inside a random disc."""
     n, _, H, W = x.shape
@@ -119,6 +136,8 @@ def main():
                     help="further samples per batch that get Gaussian noise inside a random disc")
     ap.add_argument("--seed-damage", type=int, default=2,
                     help="samples per batch that get a disc erased covering the centre (seed cell)")
+    ap.add_argument("--half-damage", type=int, default=0,
+                    help="samples per batch that lose everything on one side of a line near the centre")
     ap.add_argument("--noise-std", default="0.1,0.6", help="range the noise standard deviation is drawn from")
     ap.add_argument("--min-steps", type=int, default=64)
     ap.add_argument("--max-steps", type=int, default=96)
@@ -156,8 +175,9 @@ def main():
         keep = {k: getattr(args, k) for k in ("iters", "out", "device", "resume", "log_every", "save_every")}
         args = argparse.Namespace(**{**vars(args), **state["args"], **keep})
 
-    if args.batch < 1 + args.damage + args.noise_damage + args.seed_damage:
-        raise SystemExit("--batch must be at least 1 + --damage + --noise-damage + --seed-damage")
+    args.half_damage = getattr(args, "half_damage", 0)   # resumed runs from before this option
+    if args.batch < 1 + args.damage + args.noise_damage + args.seed_damage + args.half_damage:
+        raise SystemExit("--batch must be at least 1 + --damage + --noise-damage + --seed-damage + --half-damage")
     noise_std = tuple(float(v) for v in str(args.noise_std).split(","))
     init_meta = None
     if args.init and not args.resume:
@@ -212,7 +232,7 @@ def main():
 
     meta = dict(target=os.path.basename(args.target), target_size=args.size, pad=args.pad, grid=[H, W],
                 trained_by="nca/train_persistant.py", damage=args.damage, noise_damage=args.noise_damage,
-                seed_damage=args.seed_damage, redamage=args.redamage, hidden_noise=args.hidden_noise,
+                seed_damage=args.seed_damage, half_damage=args.half_damage, redamage=args.redamage, hidden_noise=args.hidden_noise,
                 consistency_weight=args.consistency_weight, overflow_weight=args.overflow_weight,
                 noise_std=list(noise_std), pool=args.pool, batch=args.batch,
                 steps=[args.min_steps, args.max_steps])
@@ -223,7 +243,8 @@ def main():
                                        trained_by=init_meta.get("trained_by"),
                                        damage=init_meta.get("damage"),
                                        noise_damage=init_meta.get("noise_damage", 0),
-                                       seed_damage=init_meta.get("seed_damage", 0))
+                                       seed_damage=init_meta.get("seed_damage", 0),
+                                       half_damage=init_meta.get("half_damage", 0))
     if args.resume:  # a resumed fine-tune keeps its provenance and iteration offset
         meta, done_before = state.get("meta", meta), state.get("done_before", done_before)
 
@@ -252,7 +273,7 @@ def main():
             order = per_sample_loss(x0, target).argsort(descending=True)  # worst first
         idx, x0 = idx[order], x0[order]
         x0[:1] = seed                                                    # worst -> fresh seed
-        n_dmg = args.damage + args.noise_damage + args.seed_damage
+        n_dmg = args.damage + args.noise_damage + args.seed_damage + args.half_damage
         dmg_start = args.batch - n_dmg
         with torch.no_grad():                                            # snapshot for consistency loss
             pre_damage_hidden = x0[dmg_start:, 4:].clone()
@@ -267,6 +288,11 @@ def main():
             start_sd = end_sd - args.seed_damage
             intact_c = (~centre_kill_masks(args.seed_damage, H, W, device)).to(x0.dtype)[:, None]
             x0[start_sd:end_sd] *= intact_c
+        if args.half_damage:                                             # next -> half erased
+            end_hd = args.batch - args.damage - args.noise_damage - args.seed_damage
+            start_hd = end_hd - args.half_damage
+            intact_h = (~halfplane_masks(args.half_damage, H, W, device)).to(x0.dtype)[:, None]
+            x0[start_hd:end_hd] *= intact_h
 
         x = x0
         steps = random.randint(args.min_steps, args.max_steps)

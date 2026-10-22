@@ -70,13 +70,39 @@ def test_persistent_trainer_records_settings():
         cmd = [sys.executable, "-m", "nca.train_persistant", "--init", CKPT, "--device", "cpu",
                "--iters", "2", "--pool", "16", "--batch", "8", "--min-steps", "8", "--max-steps", "10",
                "--save-every", "1", "--log-every", "1", "--lr", "2e-4",
-               "--hidden-noise", "0", "--consistency-weight", "0", "--redamage", "1", "--out", out]
+               "--hidden-noise", "0", "--consistency-weight", "0", "--redamage", "1",
+               "--half-damage", "1", "--out", out]
         subprocess.run(cmd, check=True, cwd=ROOT, capture_output=True)
         _, meta = load_npz(os.path.join(out, "pt.npz"))
         assert meta["trained_by"] == "nca/train_persistant.py"
         assert meta["hidden_noise"] == 0 and meta["consistency_weight"] == 0
         assert meta["redamage"] == 1 and meta["overflow_weight"] == 1e-3
-        assert meta["seed_damage"] == 2 and meta["batch"] == 8
+        assert meta["seed_damage"] == 2 and meta["half_damage"] == 1 and meta["batch"] == 8
+        bad = subprocess.run(cmd[:-2] + ["--half-damage", "2", "--out", out], cwd=ROOT, capture_output=True)
+        assert bad.returncode != 0, "a batch too small for the damage settings must be rejected"
+
+
+def test_halfplane_masks():
+    """Half-plane wounds cover about half the grid and cut close to the centre, in every direction."""
+    try:
+        import torch
+    except ImportError:
+        print("skip test_halfplane_masks: PyTorch not installed")
+        return
+    from nca.train_persistant import halfplane_masks
+    torch.manual_seed(0)
+    n, h, w = 512, 72, 72
+    m = halfplane_masks(n, h, w, "cpu")
+    assert m.shape == (n, h, w) and m.dtype == torch.bool
+    frac = m.float().mean((1, 2))
+    assert frac.min() > 0.3 and frac.max() < 0.7, (frac.min(), frac.max())
+    c = m[:, h // 2 - 6:h // 2 + 6, w // 2 - 6:w // 2 + 6]        # 12x12 patch around the centre
+    assert bool((c.any((1, 2)) & ~c.all((1, 2))).all()), "every cut must pass within a few px of the centre"
+    # every direction is used: the erased side's centroid points all around the circle
+    ys, xs = torch.meshgrid(torch.arange(h) - h / 2 + 0.5, torch.arange(w) - w / 2 + 0.5, indexing="ij")
+    ang = torch.atan2((m * ys).sum((1, 2)), (m * xs).sum((1, 2)))
+    hist = torch.histc(ang, bins=8, min=-torch.pi, max=torch.pi)
+    assert hist.min() > n / 8 * 0.5, hist
 
 
 if __name__ == "__main__":
