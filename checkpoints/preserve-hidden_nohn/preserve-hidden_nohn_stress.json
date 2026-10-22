@@ -28,6 +28,7 @@
   "recovered": 45,
   "trials": 48,
   "iou_end_min": 0.7590132827324478,
+  "recovered_allowing_shift": 45,
   "hub": {
    "reached": 15,
    "recovered": 12,
@@ -41,7 +42,8 @@
   "end_worst": 0.021257979795336723,
   "recovered": 5,
   "trials": 16,
-  "iou_end_min": 0.28496503496503495
+  "iou_end_min": 0.28496503496503495,
+  "recovered_allowing_shift": 6
  },
  "erase: left half": {
   "damaged_median": 0.014184508472681046,
@@ -49,7 +51,8 @@
   "end_worst": 0.010069645941257477,
   "recovered": 10,
   "trials": 16,
-  "iou_end_min": 0.5790297339593115
+  "iou_end_min": 0.5790297339593115,
+  "recovered_allowing_shift": 10
  },
  "erase: all but one quarter": {
   "damaged_median": 0.022717345505952835,
@@ -57,7 +60,8 @@
   "end_worst": 0.018288500607013702,
   "recovered": 9,
   "trials": 16,
-  "iou_end_min": 0.43120567375886526
+  "iou_end_min": 0.43120567375886526,
+  "recovered_allowing_shift": 16
  },
  "erase: 6 px slot through the centre": {
   "damaged_median": 0.005190452095121145,
@@ -65,7 +69,8 @@
   "end_worst": 0.0014490231405943632,
   "recovered": 14,
   "trials": 16,
-  "iou_end_min": 0.9149338374291115
+  "iou_end_min": 0.9149338374291115,
+  "recovered_allowing_shift": 14
  },
  "erase: the hub (centre disc r 8)": {
   "damaged_median": 0.005958052352070808,
@@ -73,7 +78,8 @@
   "end_worst": 7.69467224017717e-05,
   "recovered": 16,
   "trials": 16,
-  "iou_end_min": 0.9764705882352941
+  "iou_end_min": 0.9764705882352941,
+  "recovered_allowing_shift": 16
  },
  "noise 0.6, r 8 (training range)": {
   "damaged_median": 0.014589395374059677,
@@ -81,7 +87,8 @@
   "end_worst": 8.829972648527473e-05,
   "recovered": 16,
   "trials": 16,
-  "iou_end_min": 0.9803536345776032
+  "iou_end_min": 0.9803536345776032,
+  "recovered_allowing_shift": 16
  },
  "noise 1.0, r 8 (stronger)": {
   "damaged_median": 0.04015550762414932,
@@ -89,7 +96,8 @@
   "end_worst": 9.300980309490114e-05,
   "recovered": 16,
   "trials": 16,
-  "iou_end_min": 0.9803149606299213
+  "iou_end_min": 0.9803149606299213,
+  "recovered_allowing_shift": 16
  },
  "noise 2.0, r 8 (much stronger)": {
   "damaged_median": 0.16074270009994507,
@@ -97,7 +105,8 @@
   "end_worst": 0.029422486200928688,
   "recovered": 13,
   "trials": 16,
-  "iou_end_min": 0.3001186239620403
+  "iou_end_min": 0.3001186239620403,
+  "recovered_allowing_shift": 13
  },
  "noise 0.6 over the whole web": {
   "damaged_median": 0.0789995938539505,
@@ -105,7 +114,8 @@
   "end_worst": 0.0005573760718107224,
   "recovered": 15,
   "trials": 16,
-  "iou_end_min": 0.9689320388349515
+  "iou_end_min": 0.9689320388349515,
+  "recovered_allowing_shift": 15
  },
  "noise 1.0 on hidden channels only": {
   "damaged_median": 8.298786997329444e-05,
@@ -113,26 +123,54 @@
   "end_worst": 0.0638134777545929,
   "recovered": 0,
   "trials": 16,
-  "iou_end_min": 0.22104566512243548
+  "iou_end_min": 0.22104566512243548,
+  "recovered_allowing_shift": 0
+ },
+ "erase: right half": {
+  "damaged_median": 0.015531953424215317,
+  "end_median": 0.011841632425785065,
+  "end_worst": 0.018297428265213966,
+  "recovered": 5,
+  "trials": 16,
+  "iou_end_min": 0.42776203966005666,
+  "recovered_allowing_shift": 14
+ },
+ "erase: top half": {
+  "damaged_median": 0.014917908236384392,
+  "end_median": 8.259571768576279e-05,
+  "end_worst": 8.696538134245202e-05,
+  "recovered": 16,
+  "trials": 16,
+  "iou_end_min": 0.9803921568627451,
+  "recovered_allowing_shift": 16
+ },
+ "erase: bottom half": {
+  "damaged_median": 0.014798610471189022,
+  "end_median": 8.357445040019229e-05,
+  "end_worst": 9.091943502426147e-05,
+  "recovered": 16,
+  "trials": 16,
+  "iou_end_min": 0.9823182711198428,
+  "recovered_allowing_shift": 16
  },
  "offcentre_160": {
   "mse": [
-   9.082014003070071e-05,
-   8.775109017733485e-05,
-   9.443423186894506e-05,
-   8.946268644649535e-05
+   8.286026422865689e-05,
+   8.557776891393587e-05,
+   9.194858284899965e-05,
+   8.321976929437369e-05
   ],
   "iou": [
-   0.9901380670611439,
-   0.9862204724409449,
+   0.9901574803149606,
+   0.9862475442043221,
    0.9823529411764705,
-   0.9861932938856016
+   0.9862204724409449
   ],
   "alpha_outside": [
+   6.103515625e-05,
+   3.0517578125e-05,
    0.0,
-   0.0,
-   0.0,
-   -6.103515625e-05
+   0.0
   ]
  },
  "undamaged_median_mse": 8.298786997329444e-05
