@@ -82,6 +82,31 @@ def test_persistent_trainer_records_settings():
         assert bad.returncode != 0, "a batch too small for the damage settings must be rejected"
 
 
+def test_resume_continues_in_its_own_folder():
+    """--resume without --out must keep writing to the resumed run's folder, for both trainers."""
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        print("skip test_resume_continues_in_its_own_folder: PyTorch not installed")
+        return
+    import json
+    for module in ("nca.train", "nca.train_persistant"):
+        with tempfile.TemporaryDirectory() as d:
+            run = os.path.join(d, "web")
+            common = ["--device", "cpu", "--save-every", "1", "--log-every", "1"]
+            env = dict(os.environ, PYTHONPATH=ROOT)           # run from an empty folder to catch stray writes
+            first = [sys.executable, "-m", module, "--iters", "2", "--pool", "16", "--min-steps", "8",
+                     "--max-steps", "10", "--target", os.path.join(ROOT, "data", "spiderweb_128.png"),
+                     "--out", run] + common
+            subprocess.run(first, check=True, cwd=d, capture_output=True, env=env)
+            resume = [sys.executable, "-m", module, "--resume", os.path.join(run, "web.pt"), "--iters", "3"] + common
+            subprocess.run(resume, check=True, cwd=d, capture_output=True, env=env)
+            _, meta = load_npz(os.path.join(run, "web.npz"))
+            assert meta["iterations"] == 3, (module, meta["iterations"])
+            assert len(json.load(open(os.path.join(run, "web_log.json")))) == 3, module
+            assert not os.path.exists(os.path.join(d, "checkpoints")), f"{module} wrote outside the run folder"
+
+
 def test_halfplane_masks():
     """Half-plane wounds cover about half the grid and cut close to the centre, in every direction."""
     try:

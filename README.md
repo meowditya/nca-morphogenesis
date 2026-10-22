@@ -96,7 +96,7 @@ What `nca/train_persistant.py` adds on top of `nca/train.py`:
 | `--seed-damage N` / `--half-damage N` / `--redamage N` | `train_persistant.py` only: centre discs / half-planes erased / second wound mid-rollout |
 | `--noise-std lo,hi` | range of the training noise strength |
 | `--init model.npz` | start from existing weights (fine-tuning); iteration counts carry over |
-| `--resume run.pt` | continue a run; the `.pt` holds weights, optimiser, schedule and pool |
+| `--resume checkpoints/my_web/my_web.pt` | continue a run in its own folder; the `.pt` holds weights, optimiser, schedule and pool |
 | `--grad-checkpoint` | recompute activations in the backward pass; much less GPU memory |
 | `--device cpu\|cuda\|mps` | defaults to the first available |
 
