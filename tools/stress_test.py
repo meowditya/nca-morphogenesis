@@ -8,12 +8,15 @@ script goes further, on the 72x72 training grid unless noted:
   * growth and stability over 16 independent random seeds, up to 5,000 steps;
   * erasure: training-sized discs, then bigger discs, cutting the web in half,
     keeping only one quarter, a slot through the centre, and removing the hub;
+    the other three halves are tested at the end;
   * noise: training strength, then stronger, over the whole organism, and on
     the hidden channels only;
   * growth from off-centre seeds in a 160x160 dish.
 
 Each damage case is applied to 16 grown webs and run for 1,000 steps. A web counts
-as recovered when its error ends below twice the undamaged median (plus 1e-4).
+as recovered when its error ends below twice the undamaged median (plus 1e-4). The
+last column applies the same rule to the target moved by up to 2 px, so a web that
+regrew whole but slightly off its place is counted separately from one that did not.
 IoU is the overlap between solid pixels (alpha > 0.5) and the target's.
 Prints a table and writes all numbers to --out (JSON).
 """
@@ -55,6 +58,19 @@ def main():
 
     def mse(x):
         return ((x[..., :4] - target) ** 2).mean(axis=(1, 2, 3))
+
+    def mse_shifted(x, max_shift=2):
+        """Per-sample error against the target moved by up to max_shift px in x and y (best case).
+
+        An NCA has no sense of absolute position, so a web that regrows whole but one
+        pixel off scores badly on mse(); this tells that apart from a web that did not regrow.
+        """
+        best = mse(x)
+        for dy in range(-max_shift, max_shift + 1):
+            for dx in range(-max_shift, max_shift + 1):
+                moved = np.roll(target, (dy, dx), axis=(0, 1))
+                best = np.minimum(best, ((x[..., :4] - moved) ** 2).mean(axis=(1, 2, 3)))
+        return best
 
     def iou(x):
         a, t = x[..., 3] > 0.5, target[..., 3] > 0.5
@@ -124,8 +140,12 @@ def main():
         ("noise 2.0, r 8 (much stronger)", noise(2.0, 8)),
         ("noise 0.6 over the whole web", noise(0.6, half + 4)),
         ("noise 1.0 on hidden channels only", noise(1.0, half + 4, hidden_only=True)),
+        ("erase: right half", erase_mask(xs >= cx)),     # after the others, so their numbers stay comparable
+        ("erase: top half", erase_mask(ys < cy)),
+        ("erase: bottom half", erase_mask(ys >= cy)),
     ]
-    print(f"\n{'damage':38s} {'damaged':>9s} {'+1000 median':>13s} {'worst':>9s} {'recovered':>10s}")
+    print(f"\n{'damage':38s} {'damaged':>9s} {'+1000 median':>13s} {'worst':>9s} {'recovered':>10s}"
+          f" {'allowing 2 px shift':>20s}")
     for name, damage in cases:
         reps = 3 if "training range" in name and name.startswith("erase") else 1   # more trials here
         x = damage(np.concatenate([grown] * reps))
@@ -133,10 +153,13 @@ def main():
         x = run(x, 1000)
         end = mse(x)
         good = end < 2 * base + 1e-4
-        ok, total = int(good.sum()), len(end)
+        good_shifted = mse_shifted(x) < 2 * base + 1e-4
+        ok, total, ok_s = int(good.sum()), len(end), int(good_shifted.sum())
         results[name] = dict(damaged_median=float(np.median(hit)), end_median=float(np.median(end)),
-                             end_worst=float(end.max()), recovered=ok, trials=total, iou_end_min=float(iou(x).min()))
-        print(f"{name:38s} {np.median(hit):9.5f} {np.median(end):13.5f} {end.max():9.5f} {ok:>6d}/{total}")
+                             end_worst=float(end.max()), recovered=ok, trials=total, iou_end_min=float(iou(x).min()),
+                             recovered_allowing_shift=ok_s)
+        print(f"{name:38s} {np.median(hit):9.5f} {np.median(end):13.5f} {end.max():9.5f} {ok:>6d}/{total}"
+              f" {ok_s:>14d}/{total}")
         if reps > 1:
             hub = np.array(reaches_hub)
             results[name]["hub"] = dict(reached=int(hub.sum()), recovered=int(good[hub].sum()),
