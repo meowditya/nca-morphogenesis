@@ -19,21 +19,26 @@ Training recipe
   * after the full rollout the RGBA channels are compared with the target
     (MSE) plus a small `--overflow-weight` penalty on hidden channels that
     exceed 1.0 in absolute value (keeps regrown hidden states stable),
-  * a consistency loss (`--consistency-weight`) penalises hidden-channel drift:
-    for damaged samples the regrown hidden state is compared to its pre-damage
-    snapshot, forcing the model to reproduce the same internal state,
-  * per-step Gaussian noise (`--hidden-noise`) is injected into hidden channels
-    during training, making the model tolerant of small state perturbations,
+  * optional, off by default: a consistency loss (`--consistency-weight`) that
+    pulls the regrown hidden state of damaged samples towards its pre-damage
+    snapshot, and per-step Gaussian noise on the hidden channels
+    (`--hidden-noise`). Turning both off made the grown web about twice as sharp
+    (README, "How the default model was made"), so they default to 0,
   * gradients are normalised per tensor before Adam (stabilises long rollouts),
   * the final states are written back into the pool.
 
 Usage (from the project root):
 
-    python -m nca.train --target data/spiderweb_128.png --out checkpoints/my_web.npz
-    python -m nca.train --resume checkpoints/my_web.pt            # continue a run
+    python -m nca.train_persistant --out checkpoints/my_web
+    python -m nca.train_persistant --resume checkpoints/my_web/my_web.pt   # continue a run
 
-Outputs: <out>.npz (weights for the simulator), <out>.pt (full training
-state for --resume), <out>_log.json (loss per iteration) and preview PNGs.
+    # the bundled default model: fine-tuned from preserve-hidden
+    python -m nca.train_persistant --init checkpoints/preserve-hidden/preserve-hidden.npz \
+        --batch 16 --lr 2e-4 --iters 3000 --grad-checkpoint --out checkpoints/preserve-hidden_nohn
+
+Outputs go to a folder named after --out: <name>.npz (weights for the
+simulator), <name>.pt (full training state for --resume), <name>_log.json
+(loss per iteration) and <name>_previews/.
 """
 import argparse
 import json
@@ -145,10 +150,12 @@ def main():
                     help="samples re-damaged with a random disc mid-rollout for multi-round resilience")
     ap.add_argument("--overflow-weight", type=float, default=1e-3,
                     help="penalty on hidden channels exceeding 1.0 in abs value (stabilises regrown states)")
-    ap.add_argument("--consistency-weight", type=float, default=0.05,
-                    help="penalty on hidden-channel drift between pre-damage and regrown state")
-    ap.add_argument("--hidden-noise", type=float, default=0.02,
-                    help="std of Gaussian noise added to hidden channels each step during training")
+    ap.add_argument("--consistency-weight", type=float, default=0.0,
+                    help="penalty on hidden-channel drift between pre-damage and regrown state "
+                         "(off by default; see the README)")
+    ap.add_argument("--hidden-noise", type=float, default=0.0,
+                    help="std of Gaussian noise added to hidden channels each step during training "
+                         "(off by default; see the README)")
     ap.add_argument("--iters", type=int, default=8000)
     ap.add_argument("--lr", type=float, default=2e-3)
     ap.add_argument("--lr-decay-at", type=int, default=2000, help="lr drops 10x at this iteration")
