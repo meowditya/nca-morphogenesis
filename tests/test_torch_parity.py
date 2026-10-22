@@ -28,7 +28,7 @@ from nca.checkpoint import load_npz  # noqa: E402
 from nca.model import NCA, make_seed  # noqa: E402
 from train_numpy import backward, rollout  # noqa: E402
 
-CKPT = os.path.join(ROOT, "checkpoints", "spiderweb_starter.npz")
+CKPT = os.path.join(ROOT, "checkpoints", "spiderweb_starter", "spiderweb_starter.npz")
 
 
 def test_noise_damage_is_confined():

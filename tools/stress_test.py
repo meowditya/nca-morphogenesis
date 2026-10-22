@@ -1,6 +1,6 @@
 """Stress tests: how a trained model behaves beyond the conditions it was trained on.
 
-    python tools/stress_test.py --checkpoint checkpoints/spiderweb.npz
+    python tools/stress_test.py --checkpoint checkpoints/spiderweb/spiderweb.npz
 
 tools/evaluate.py measures damage of the same kinds and sizes as training. This
 script goes further, on the 72x72 training grid unless noted:
@@ -37,7 +37,7 @@ from nca.target import load_target  # noqa: E402
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--checkpoint", default=os.path.join(ROOT, "checkpoints", "spiderweb", "spiderweb.npz"))
+    ap.add_argument("--checkpoint", default=os.path.join(ROOT, "checkpoints", "preserve-hidden_nohn", "preserve-hidden_nohn.npz"))
     ap.add_argument("--trials", type=int, default=16)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default=None, help="JSON file for all numbers (default: <checkpoint_folder>/<checkpoint>_stress.json)")

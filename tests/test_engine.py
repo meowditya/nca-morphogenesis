@@ -14,7 +14,7 @@ sys.path.insert(0, ROOT)
 from sim.engine import Simulation  # noqa: E402
 from sim.session import Session, decode  # noqa: E402
 
-CKPT = os.path.join(ROOT, "checkpoints", "spiderweb_starter.npz")
+CKPT = os.path.join(ROOT, "checkpoints", "spiderweb_starter", "spiderweb_starter.npz")
 
 
 def make_sim(size=64):
